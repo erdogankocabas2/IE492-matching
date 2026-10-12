@@ -146,14 +146,19 @@ def compute_kpis(players, avg_queue, warmup=0.0):
             "beklemeden eslesme orani": float((w == 0).mean()),
             "ort. kuyruk uzunlugu": avg_queue[c],
         }
+    kpis["toplam"] = {
+        "ort. kuyruk uzunlugu": avg_queue[WHITE] + avg_queue[BLACK]
+    }
     return kpis
 
 
 def print_kpis(kpis):
-    names = list(next(iter(kpis.values())).keys())
+    names = [k for k in next(iter(kpis.values())).keys()]
     print(f"{'KPI':<28}{'beyaz':>12}{'siyah':>12}")
     for n in names:
         print(f"{n:<28}{kpis['beyaz'][n]:>12.3f}{kpis['siyah'][n]:>12.3f}")
+    if "toplam" in kpis:
+        print(f"{'ort. toplam kuyruk (|B-S|)':<28}{kpis['toplam']['ort. kuyruk uzunlugu']:>24.3f}")
 
 # %% [markdown]
 # ## Analitik model (CTMC)
@@ -174,6 +179,7 @@ def ctmc_abandon(lam, p, theta, N=500):
     return {
         "beyaz": {"ort. bekleme (tumu)": L_w / a, "terk orani": theta * L_w / a, "ort. kuyruk uzunlugu": L_w},
         "siyah": {"ort. bekleme (tumu)": L_b / b, "terk orani": theta * L_b / b, "ort. kuyruk uzunlugu": L_b},
+        "toplam": {"ort. kuyruk uzunlugu": L_w + L_b},
     }
 
 # %% [markdown]
@@ -187,29 +193,46 @@ print_kpis(kpis)
 print("\nSimulasyon vs CTMC")
 theory = ctmc_abandon(LAM, P, THETA)
 for col in ("beyaz", "siyah"):
-    for k in theory[col]:
+    for k in ("ort. bekleme (tumu)", "terk orani", "ort. kuyruk uzunlugu"):
         print(f"{col:<6} {k:<22} sim={kpis[col][k]:8.3f}   ctmc={theory[col][k]:8.3f}")
+print(f"{'toplam':<6} {'ort. kuyruk (|X|)':<22} sim={kpis['toplam']['ort. kuyruk uzunlugu']:8.3f}   ctmc={theory['toplam']['ort. kuyruk uzunlugu']:8.3f}")
 
 print(f"\nCogunluk rengi icin terk alt siniri (2p-1)/p = {max(2*P-1, 0)/P:.3f}")
 
 # %%
-fig, axs = plt.subplots(1, 2, figsize=(12, 4))
+fig, axs = plt.subplots(1, 3, figsize=(16, 4))
 
 tt, xx = trace
 window = (tt >= WARMUP) & (tt <= WARMUP + 2000)
-axs[0].step(tt[window], xx[window], where="post")
-axs[0].axhline(0, color="gray", lw=0.8)
-axs[0].set_xlabel("zaman"); axs[0].set_ylabel("#beyaz - #siyah")
-axs[0].set_title("Kuyruk durumu (2000 birimlik pencere)")
 
+# 1. Isaretli kuyruk farki (X(t) = #beyaz - #siyah)
+axs[0].step(tt[window], xx[window], where="post", color="tab:blue")
+axs[0].axhline(0, color="gray", lw=0.8, linestyle="--")
+axs[0].set_xlabel("zaman")
+axs[0].set_ylabel("#beyaz - #siyah")
+axs[0].set_title("Kuyruk Farkı: X(t)")
+
+# 2. Herhangi bir andaki toplam kuyruk: |X(t)|
+abs_xx = np.abs(xx)
+axs[1].step(tt[window], abs_xx[window], where="post", color="tab:purple")
+axs[1].axhline(kpis["toplam"]["ort. kuyruk uzunlugu"], color="red", linestyle=":", lw=1.5,
+                label=f"Ort. = {kpis['toplam']['ort. kuyruk uzunlugu']:.2f}")
+axs[1].set_xlabel("zaman")
+axs[1].set_ylabel("Anlık Toplam Kuyruk |X(t)|")
+axs[1].set_title("Anlık Toplam Kuyruk: |beyaz - siyah|")
+axs[1].legend()
+
+# 3. Bekleme suresi dagilimi
 for c in (WHITE, BLACK):
     sel = (players["color"] == c) & (players["status"] == MATCHED) & (players["arrival"] >= WARMUP)
     w = players["end"][sel] - players["arrival"][sel]
-    axs[1].hist(w[w > 0], bins=60, alpha=0.6, label=COLOR_NAME[c], density=True)
-axs[1].set_xlabel("bekleme süresi (eşleşen, w > 0)"); axs[1].set_ylabel("yoğunluk")
-axs[1].set_title("Bekleme süresi dağılımı")
-axs[1].legend()
-plt.tight_layout(); plt.show()
+    axs[2].hist(w[w > 0], bins=60, alpha=0.6, label=COLOR_NAME[c], density=True)
+axs[2].set_xlabel("bekleme süresi (eşleşen, w > 0)")
+axs[2].set_ylabel("yoğunluk")
+axs[2].set_title("Bekleme Süresi Dağılımı")
+axs[2].legend()
+plt.tight_layout()
+plt.show()
 
 # %% [markdown]
 # ## Duyarlılık analizi: $p$ ve $\theta$

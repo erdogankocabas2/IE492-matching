@@ -13,6 +13,12 @@ $X(t) = \#\text{beyaz} - \#\text{siyah}$ tek boyutlu bir Doğum-Ölüm Süreci (
 - $n > 0$ iken ($n$ beyaz bekliyor): $n \to n+1$ geçiş hızı $p\lambda$, $n \to n-1$ geçiş hızı $(1-p)\lambda + n\theta$.
 - $n < 0$ iken ($|n|$ siyah bekliyor): simetrik yapı.
 
+### Anlık ve Zaman Ortalamalı Toplam Kuyruk
+FCFS eşleşme kuralı gereğince sistemde aynı anda iki renkten de oyuncu bulunamaz ($N_\text{beyaz}(t) > 0 \implies N_\text{siyah}(t) = 0$). Bu nedenle herhangi bir $t$ anında sistemde sırada bekleyen **toplam oyuncu sayısı (anlık kuyruk)**:
+$$Q(t) = N_\text{beyaz}(t) + N_\text{siyah}(t) = |N_\text{beyaz}(t) - N_\text{siyah}(t)| = |X(t)|$$
+Zaman ortalamalı toplam kuyruk uzunluğu ise renk bazlı kuyrukların toplamına eşittir:
+$$L_\text{toplam} = E[|X|] = L_\text{beyaz} + L_\text{siyah}$$
+
 Durağan dağılımdan Little Yasası yardımıyla:
 $$E[W_\text{beyaz}] = \frac{L_\text{beyaz}}{p\lambda}, \qquad P(\text{beyaz terk}) = \frac{\theta L_\text{beyaz}}{p\lambda}$$
 
