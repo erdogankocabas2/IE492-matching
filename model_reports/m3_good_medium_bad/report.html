@@ -1,0 +1,1238 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Good–Medium–Bad Matching</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500..700&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Serif:ital@1&display=swap">
+<style>
+/* Düzen: üstte sabit model çubuğu; rapor tek sütun (okuma 72ch), §1'de canlı model + parametre paneli yan yana "deney tezgâhı" */
+:root {
+  --bg: #e7eaee; --surface: #f5f6f8; --sunk: #eceef2; --fg: #1a202b; --muted: #545c6a; --faint: #818a98;
+  --line: #d1d6de; --lane: #e3e7ec; --ink: #1d2433; --ink-fg: #f5f6f8;
+  --s1: #2a78d6; --s2: #eb6834; --s3: #1baf7a; --flex: #6250d6; --flex-bg: #e6e3f4; --bad: #d63b3a; --good: #1d7f4e;
+  --warn-bg: #f4e7cc; --warn-fg: #6e4400;
+  --pawn-w: #fbfbfb; --pawn-w-edge: #2a2f3a; --pawn-b: #1f2229; --pawn-b-edge: #1f2229;
+  --f-display: "Bricolage Grotesque", "IBM Plex Sans", system-ui, sans-serif;
+  --f-body: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --f-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+  --r-lg: 14px; --r-md: 10px;
+  color-scheme: light;
+}
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--fg); font-family: var(--f-body); font-size: 15px; line-height: 1.6; margin: 0; -webkit-font-smoothing: antialiased; }
+a { color: inherit; }
+h1, h2, h3 { font-family: var(--f-display); text-wrap: balance; margin: 0; letter-spacing: -0.015em; }
+h1 { font-size: clamp(30px, 5.4vw, 46px); line-height: 1.05; font-weight: 700; }
+h2 { font-size: 24px; line-height: 1.2; font-weight: 650; }
+h3 { font-size: 16px; line-height: 1.3; font-weight: 600; }
+p { margin: 0; max-width: 72ch; }
+.mono, td, output, .num { font-family: var(--f-mono); font-variant-numeric: tabular-nums; }
+
+/* üst çubuk */
+.bar { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 10; background: color-mix(in srgb, var(--bg) 88%, transparent); backdrop-filter: blur(8px); border-bottom: 1px solid var(--line); }
+.bar-in { max-width: 1180px; margin: 0 auto; padding-inline: 20px; padding-block: 10px; display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.brand { font-family: var(--f-mono); font-size: 12px; letter-spacing: 0.06em; color: var(--muted); text-decoration: none; }
+.brand b { color: var(--fg); font-weight: 600; }
+.seg { display: flex; background: var(--sunk); border: 1px solid var(--line); border-radius: 999px; padding: 3px; gap: 2px; overflow-x: auto; max-width: 100%; }
+.seg a { text-decoration: none; font-size: 13px; padding: 5px 12px; border-radius: 999px; color: var(--muted); white-space: nowrap; }
+.seg a:hover { color: var(--fg); }
+.seg a[aria-current="page"] { background: var(--surface); color: var(--fg); box-shadow: 0 1px 2px rgba(15, 20, 30, .12); font-weight: 500; }
+
+.wrap { max-width: 1180px; margin: 0 auto; padding-inline: 20px; padding-block: 36px 72px; display: flex; flex-direction: column; gap: 56px; }
+
+/* başlık + model kartı */
+header.top { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); gap: 32px; align-items: start; }
+.hgroup { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+.eyebrow { font-family: var(--f-mono); font-size: 12px; letter-spacing: 0.08em; color: var(--muted); }
+.lede { font-size: 17px; line-height: 1.6; }
+.spec { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-lg); padding: 6px 18px; margin: 0; min-width: 0; }
+.spec div { display: grid; grid-template-columns: 96px minmax(0, 1fr); gap: 12px; padding-block: 10px; border-bottom: 1px solid var(--line); }
+.spec div:last-child { border-bottom: none; }
+.spec dt { font-family: var(--f-mono); font-size: 11.5px; letter-spacing: 0.06em; color: var(--muted); padding-top: 2px; }
+.spec dd { margin: 0; font-size: 14px; line-height: 1.5; }
+var, .m { font-family: "IBM Plex Serif", Georgia, serif; font-style: italic; }
+.m-up { font-style: normal; font-family: var(--f-mono); font-size: .92em; }
+
+/* bölümler */
+section { display: flex; flex-direction: column; gap: 18px; scroll-margin-top: 70px; }
+.sec-head { display: flex; flex-direction: column; gap: 6px; border-top: 1px solid var(--line); padding-top: 18px; }
+.sec-head .sec-no { font-family: var(--f-mono); font-size: 12px; color: var(--faint); letter-spacing: 0.06em; }
+.sec-head p { color: var(--muted); font-size: 14.5px; }
+
+/* deney tezgâhı */
+.bench { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 16px; align-items: start; }
+.stage { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-lg); display: flex; flex-direction: column; min-width: 0; overflow: hidden; }
+.stage-top { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 18px; padding: 12px 16px; border-bottom: 1px solid var(--line); }
+.stage-top .legend { padding: 0; flex: 1 1 320px; justify-content: center; }
+.stage canvas { width: 100%; display: block; padding: 12px 10px 4px; background: radial-gradient(circle at 1px 1px, var(--line) 1px, transparent 0) 0 0 / 18px 18px; }
+.controls { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+button { font: inherit; font-size: 13.5px; cursor: pointer; border-radius: 8px; padding: 6px 12px; border: 1px solid var(--line); background: var(--surface); color: var(--fg); }
+button:hover { border-color: var(--faint); }
+button.primary { background: var(--ink); color: var(--ink-fg); border-color: var(--ink); min-width: 84px; }
+button:focus-visible, input:focus-visible, a:focus-visible { outline: 2px solid var(--flex); outline-offset: 2px; }
+.speed { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--muted); }
+.speed input { width: 96px; accent-color: var(--ink); }
+.legend { display: flex; flex-wrap: wrap; gap: 4px 16px; font-size: 12.5px; color: var(--muted); padding: 0 14px 10px; }
+.legend span { display: inline-flex; align-items: center; gap: 6px; }
+.legend i { display: inline-block; width: 12px; height: 12px; border-radius: 50%; flex: none; }
+.legend i.ring { border: 2.5px solid var(--faint); border-right-color: var(--line); border-bottom-color: var(--line); }
+.legend i.flex { border: 2.5px solid var(--flex); }
+.legend i.flex2 { border: 2.5px solid var(--flex); box-shadow: 0 0 0 2px var(--surface), 0 0 0 4px var(--flex); }
+.legend i.ab { position: relative; border-radius: 0; }
+.legend i.ab::before, .legend i.ab::after { content: ""; position: absolute; left: 5px; top: -1px; width: 2.5px; height: 14px; background: var(--bad); transform: rotate(45deg); }
+.legend i.ab::after { transform: rotate(-45deg); }
+.legend i.pw { background: var(--pawn-w); border: 1.5px solid var(--pawn-w-edge); }
+.legend i.pb { background: var(--pawn-b); border: 1.5px solid var(--pawn-b-edge); }
+.counters { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); border-top: 1px solid var(--line); background: var(--sunk); }
+.counter { display: flex; flex-direction: column; padding: 10px 14px; border-right: 1px solid var(--line); }
+.counter:last-child { border-right: none; }
+.counter .k { font-size: 11.5px; color: var(--muted); letter-spacing: 0.05em; }
+.counter .v { font-family: var(--f-mono); font-size: 18px; font-variant-numeric: tabular-nums; }
+
+.params { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-lg); display: flex; flex-direction: column; min-width: 0; }
+.params-head { padding: 12px 16px; border-bottom: 1px solid var(--line); display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.params-head h3 { font-size: 15px; }
+.status { font-size: 12px; color: var(--muted); font-family: var(--f-mono); }
+.status.busy { color: var(--flex); }
+#params { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(260px, 100%), 1fr)); }
+.pgroup { display: flex; flex-direction: column; gap: 12px; padding: 14px 18px; border-right: 1px solid var(--line); }
+.pgroup:last-child { border-right: none; }
+.pgroup h4 { margin: 0; font-size: 11.5px; font-family: var(--f-mono); letter-spacing: 0.08em; color: var(--muted); font-weight: 500; }
+.param { display: flex; flex-direction: column; gap: 3px; }
+.param label { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; font-size: 14px; }
+.param label output { font-size: 13.5px; background: var(--sunk); border-radius: 6px; padding: 0 7px; }
+.param small { color: var(--faint); font-size: 12px; line-height: 1.4; }
+.param input[type=range] { width: 100%; accent-color: var(--ink); margin: 2px 0; }
+.param.off { opacity: 0.4; }
+.switch { display: flex; align-items: center; justify-content: space-between; gap: 10px; font-size: 14px; }
+.switch input { appearance: none; -webkit-appearance: none; margin: 0; width: 38px; height: 22px; border-radius: 999px; background: var(--line); position: relative; cursor: pointer; transition: background .15s; flex: none; }
+.switch input::after { content: ""; position: absolute; top: 3px; left: 3px; width: 16px; height: 16px; border-radius: 50%; background: var(--surface); transition: left .15s; box-shadow: 0 1px 2px rgba(0,0,0,.3); }
+.switch input:checked { background: var(--ink); }
+.switch input:checked::after { left: 19px; }
+
+/* sonuçlar */
+.tiles { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 1px; background: var(--line); border: 1px solid var(--line); border-radius: var(--r-lg); overflow: hidden; }
+.tile { padding: 14px 16px; display: flex; flex-direction: column; gap: 2px; min-width: 0; background: var(--surface); }
+.tiles.c3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.tile .grp { font-family: var(--f-mono); font-size: 11px; letter-spacing: .06em; color: var(--faint); }
+.tile .k { font-size: 12.5px; color: var(--muted); }
+.tile .v { font-family: var(--f-mono); font-size: 28px; font-variant-numeric: tabular-nums; line-height: 1.2; letter-spacing: -0.02em; }
+.tile .v small { font-size: 13px; color: var(--muted); letter-spacing: 0; margin-left: 4px; }
+.tile .s { font-size: 12px; color: var(--faint); font-family: var(--f-mono); }
+.charts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.charts .wide { grid-column: 1 / -1; }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-lg); padding: 16px 18px; display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.card-head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-start; gap: 8px 14px; }
+.card-head > div:first-child { display: flex; flex-direction: column; gap: 3px; min-width: 0; max-width: 60ch; }
+.cap { color: var(--muted); font-size: 13px; line-height: 1.5; }
+.chart-box { position: relative; height: 290px; }
+#ch3 { max-height: 100%; }
+.chips { display: flex; flex-wrap: wrap; gap: 4px; background: var(--sunk); border-radius: 999px; padding: 3px; border: 1px solid var(--line); }
+.chips button { font-size: 12.5px; padding: 3px 10px; border-radius: 999px; border: none; background: none; color: var(--muted); }
+.chips button[aria-pressed="true"] { background: var(--surface); color: var(--fg); box-shadow: 0 1px 2px rgba(15, 20, 30, .12); }
+.table-card { padding: 0; overflow: hidden; }
+.table-card .card-head { padding: 16px 18px 6px; }
+.table-wrap { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; font-size: 13.5px; }
+th, td { padding: 9px 14px; text-align: right; white-space: nowrap; border-bottom: 1px solid var(--line); }
+th:first-child, td:first-child { text-align: left; }
+thead th { font-weight: 500; color: var(--muted); font-size: 11.5px; letter-spacing: 0.05em; background: var(--sunk); border-top: 1px solid var(--line); }
+td:first-child { font-family: var(--f-body); }
+tbody tr:last-child td { border-bottom: none; }
+tr.cur td { background: var(--flex-bg); font-weight: 600; }
+td.ok { color: var(--good); }
+td.dim, span.dim { color: var(--faint); }
+.dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 8px; }
+.warn { background: var(--warn-bg); color: var(--warn-fg); border-radius: var(--r-md); padding: 10px 14px; font-size: 14px; }
+
+/* analitik */
+.analytic { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; }
+.eq { display: grid !important; grid-template-columns: repeat(auto-fit, minmax(min(420px, 100%), 1fr)); }
+.eq p { grid-column: 1 / -1; }
+.eq { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-lg); padding: 16px 18px; display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.eq p { font-size: 14px; }
+.formula { background: var(--sunk); border-radius: var(--r-md); padding: 10px 14px; font-family: "IBM Plex Serif", Georgia, serif; font-size: 15px; line-height: 1.7; overflow-x: auto; }
+.formula .lbl { font-family: var(--f-mono); font-style: normal; font-size: 11px; color: var(--muted); letter-spacing: 0.05em; display: block; white-space: normal; }
+
+/* sonuç */
+.findings { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.finding { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-lg); padding: 16px 18px; display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.finding .n { font-family: var(--f-mono); font-size: 12px; color: var(--faint); }
+.finding p { font-size: 14.5px; }
+.finding.key { grid-column: 1 / -1; background: var(--flex-bg); border-color: transparent; }
+.finding.key .n { color: var(--flex); }
+
+footer { color: var(--faint); font-size: 12px; border-top: 1px solid var(--line); padding-top: 16px; }
+
+@media (max-width: 1040px) {
+  .pgroup { border-bottom: 1px solid var(--line); }
+}
+@media (max-width: 860px) {
+  header.top, .analytic, .charts, .findings { grid-template-columns: minmax(0, 1fr); }
+  .tiles, .tiles.c3 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 480px) {
+  .notation { grid-template-columns: minmax(0, 1fr); }
+  .notation div { grid-template-columns: minmax(0, 1fr); gap: 0; }
+  .wrap, .bar-in { padding-inline: 16px; }
+  .tile .v { font-size: 22px; }
+  .spec div { grid-template-columns: minmax(0, 1fr); gap: 2px; }
+}
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+
+/* performans tablosu: metrik satırları, sınıf sütunları */
+table.perf td.ci { color: var(--faint); font-size: 12px; padding-left: 0; text-align: left; }
+table.perf th.grp { text-align: center; border-left: 1px solid var(--line); }
+table.perf td.gs { border-left: 1px solid var(--line); }
+table.perf td.an { color: var(--muted); }
+table.setup td:first-child { color: var(--muted); }
+table.setup td:first-child { width: 32%; white-space: normal; }
+table.setup td:last-child { text-align: left; font-family: var(--f-body); white-space: normal; }
+
+/* kırılımlar, alt başlık satırları, veri çubukları, gösterim */
+.tile .v:empty { display: none; }
+.brk { display: flex; flex-wrap: wrap; gap: 4px 14px; margin-top: 8px; padding-top: 8px; border-top: 1px dashed var(--line); font-size: 13px; color: var(--muted); }
+.brk span { display: inline-flex; align-items: center; gap: 6px; }
+.brk i { width: 8px; height: 8px; border-radius: 50%; flex: none; }
+.brk b { font-family: var(--f-mono); font-weight: 500; color: var(--fg); font-variant-numeric: tabular-nums; }
+tr.sec td { background: var(--sunk); font-family: var(--f-mono); font-size: 11px; letter-spacing: .07em; color: var(--muted); padding-block: 6px; text-align: left; border-left: none !important; }
+.pill { font-family: var(--f-mono); font-size: 10.5px; background: var(--flex); color: #fff; padding: 1px 7px; border-radius: 999px; margin-left: 6px; vertical-align: 1px; font-weight: 500; }
+.bc { display: flex; align-items: center; justify-content: flex-end; gap: 8px; }
+.bt { width: 64px; height: 6px; background: var(--lane); border-radius: 3px; overflow: hidden; display: inline-block; flex: none; }
+.bt i { display: block; height: 100%; border-radius: 3px; }
+table.sweep th.gs, table.sweep td.gs, table.perf th.gs { border-left: 1px solid var(--line); }
+table.sweep th.grp { text-align: center; border-left: 1px solid var(--line); }
+.xm { color: var(--flex); font-weight: 600; }
+.card .table-wrap.inset { margin: 6px -18px -16px; border-top: 1px solid var(--line); }
+.notation { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(380px, 100%), 1fr)); gap: 8px 32px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-lg); padding: 14px 18px; margin: 0; }
+.notation div { display: grid; grid-template-columns: 150px minmax(0, 1fr); gap: 10px; align-items: baseline; font-size: 13.5px; }
+.notation dt { font-weight: 500; font-size: 14px; }
+.notation dd { margin: 0; color: var(--muted); }
+
+section#sim { gap: 14px; }
+.stage { box-shadow: 0 1px 2px rgba(20, 28, 45, .05), 0 8px 24px -12px rgba(20, 28, 45, .18); }
+.sub-head { display: flex; align-items: baseline; gap: 10px; margin-top: 8px; }
+.sub-head h3 { font-size: 17px; }
+.sub-head span { color: var(--faint); font-size: 13px; }
+details.notation-wrap { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-lg); }
+details.notation-wrap > summary { cursor: pointer; padding: 10px 18px; font-size: 13.5px; color: var(--muted); list-style: none; display: block; overflow-wrap: anywhere; }
+details.notation-wrap > summary::-webkit-details-marker { display: none; }
+details.notation-wrap > summary::before { content: "▸"; display: inline-block; margin-right: 8px; font-size: 11px; transition: transform .15s; }
+details.notation-wrap[open] > summary::before { transform: rotate(90deg); }
+details.notation-wrap .notation { border: none; border-top: 1px solid var(--line); border-radius: 0 0 var(--r-lg) var(--r-lg); }
+
+</style>
+<div class="bar">
+  <div class="bar-in">
+    <a class="brand" href="../index.html"><b>IE492</b> · <span lang="en">A Stochastic Matching Problem</span></a>
+    <nav class="seg" aria-label="Model reports">
+      <a href="../m1_chess/report.html">M1 · White–Black</a>
+      <a href="../m2_good_bad/report.html">M2 · Good–Bad</a>
+      <a href="../m3_good_medium_bad/report.html" aria-current="page">M3 · Good–Medium–Bad</a>
+    </nav>
+  </div>
+</div>
+<main class="wrap">
+  <header class="top">
+    <div class="hgroup">
+      <span class="eyebrow">Model 3 / 3 · Phase 2.3 · new</span>
+      <h1>Good–Medium–Bad: neighbour and far thresholds</h1>
+      <p class="lede">Model 2'nin üç sınıfa genellemesi. Komşu sınıflar (G–M, M–B) τ sonra, uç sınıflar (G–B) 2τ sonra eşleşebilir; G–B kapatılabilir.</p>
+    </div>
+    <dl class="spec"><div><dt>Arrivals</dt><dd>Poisson(<var>λ</var>); <var>p</var><sub>G</sub>, <var>p</var><sub>M</sub> = 1 − <var>p</var><sub>G</sub> − <var>p</var><sub>B</sub>, <var>p</var><sub>B</sub>.</dd></div><div><dt>Policy</dt><dd>Threshold matrix <var>d</var>: aynı sınıf 0, komşu <var>τ</var>, G–B 2<var>τ</var> (ya da ∞). Önce en küçük eşik, eşitlikte en uzun bekleyen.</dd></div><div><dt>Abandonment</dt><dd>Sabır ~ Exp(<var>θ</var><sub>i</sub>), üç sınıf için ayrı.</dd></div><div><dt>State</dt><dd><var>N</var><sub>i</sub> ∈ {0, 1}, <var>N</var> ≤ 3, bekleyenlerin yaşı.</dd></div><div><dt>Metrics</dt><dd><var>W</var><sub>G</sub>, <var>W</var><sub>M</sub>, <var>W</var><sub>B</sub>, <var>W</var> · <var>L</var><sub>i</sub>, <var>L</var> · P(abandon<sub>i</sub>) · cross-match rate · match-type matrix</dd></div><div><dt>Source</dt><dd><span class="m-up">m3_good_medium_bad/simulation.py</span> · Phase 2.2'nin threshold matrix ile genellemesi</dd></div></dl>
+  </header>
+
+  <section id="sim" aria-labelledby="h-live">
+    <div class="sec-head">
+      <span class="sec-no">§1</span>
+      <h2 id="h-live">Simulation</h2>
+      <p>İç halka τ'ya kadar doluyor: komşu sınıf açılır. Good ve Bad'de dış halka 2τ'ya kadar doluyor: karşı uç açılır.</p>
+    </div>
+    <div class="stage">
+      <div class="stage-top">
+        <div class="controls">
+          <button id="play" class="primary" type="button">Pause</button>
+          <button id="reset" type="button">Restart</button>
+        </div>
+        <div class="legend"><span><i style="background:var(--s1)"></i>Good</span><span><i style="background:var(--s3)"></i>Medium</span><span><i style="background:var(--s2)"></i>Bad</span><span><i class="ring"></i>τ'ya kadar</span><span><i class="flex"></i>komşuya açık</span><span><i class="flex2"></i>2τ: karşı uca açık</span><span><i class="ab"></i>abandonment</span></div>
+        <label class="speed" for="speed">Speed <input id="speed" type="range" min="0.5" max="8" step="0.5" value="1.5"> <output id="speed_o">1,5×</output></label>
+      </div>
+      <canvas id="stage" aria-label="Live animation of queues and matches"></canvas>
+      <div class="counters">
+        <div class="counter"><span class="k">Time</span><span class="v" id="c_t">0</span></div>
+        <div class="counter"><span class="k">Matches</span><span class="v" id="c_m">0</span></div>
+        <div class="counter"><span class="k">Cross-match</span><span class="v" id="c_x">0</span></div>
+        <div class="counter"><span class="k">Abandoned</span><span class="v" id="c_a">0</span></div>
+        <div class="counter"><span class="k">In queue</span><span class="v" id="c_q">0</span></div>
+        <div class="counter"><span class="k">Live mean W</span><span class="v" id="c_w">–</span></div>
+      </div>
+    </div>
+    <div class="params" aria-labelledby="h-par">
+      <div class="params-head"><h3 id="h-par">Parameters</h3><span class="status" id="status"></span></div>
+      <div id="params"></div>
+    </div>
+  </section>
+
+  <section id="sonuclar" aria-labelledby="h-res">
+    <div class="sec-head">
+      <span class="sec-no">§2</span>
+      <h2 id="h-res">Results</h2>
+      <p>Kutular ve performans tablosu 5 replikasyondan, grafikler tek uzun run'dan geliyor.</p>
+    </div>
+    <div id="warn" class="warn" hidden></div>
+    <details class="notation-wrap"><summary>Notation · <var>W</var><sub>G</sub>, <var>W</var><sub>M</sub>, <var>W</var><sub>B</sub>, <var>W</var> · <var>L</var><sub>G</sub>, <var>L</var><sub>M</sub>, <var>L</var><sub>B</sub>, <var>L</var> · P(abandon<sub>i</sub>) · cross-match · τ</summary><dl class="notation"><div><dt><var>W</var><sub>G</sub>, <var>W</var><sub>M</sub>, <var>W</var><sub>B</sub>, <var>W</var></dt><dd>Mean waiting time: gelişten eşleşmeye ya da terke kadar geçen süre.</dd></div><div><dt><var>L</var><sub>G</sub>, <var>L</var><sub>M</sub>, <var>L</var><sub>B</sub>, <var>L</var></dt><dd>Mean queue length: kuyrukta bekleyen ortalama oyuncu sayısı; <var>L</var> = Σ <var>L</var><sub>i</sub>.</dd></div><div><dt><var>λ</var><sub>i</sub> = <var>λ</var><var>p</var><sub>i</sub></dt><dd>Arrival rate. Little's law: <var>L</var><sub>i</sub> = <var>λ</var><sub>i</sub><var>W</var><sub>i</sub>.</dd></div><div><dt>P(abandon<sub>i</sub>)</dt><dd>Sabrı bitip eşleşmeden ayrılan oyuncu oranı.</dd></div><div><dt>Cross-match rate</dt><dd>Farklı sınıftan iki oyuncunun eşleştiği maçların payı.</dd></div><div><dt><var>τ</var></dt><dd>Cross-match threshold: bu kadar bekleyen oyuncu karşı sınıfla da eşleşebilir.</dd></div><div><dt>± 95% CI</dt><dd>5 bağımsız replikasyondan güven aralığı yarı genişliği.</dd></div></dl></details><div class="tiles" id="tiles"></div><div class="charts"><div class="card wide"><div class="card-head"><div><h3>Trade-off: match quality ↔ waiting time</h3><p class="cap">Ana sonuç. Her nokta bir τ: sağda τ = 0 (single pool), solda τ = ∞ (strict separation). Mor nokta mevcut τ, elmaslar analitik uç noktalar.</p></div><div class="chips" id="chips1" role="group" aria-label="Gösterilen ölçüt"></div></div><div class="chart-box"><canvas id="ch1"></canvas></div></div><div class="card"><div class="card-head"><div><h3>Effect of τ</h3><p class="cap">τ arttıkça cross-match düşüyor; abandonment açıksa P(abandon) artıyor.</p></div></div><div class="chart-box"><canvas id="ch2"></canvas></div></div><div class="card"><div class="card-head"><div><h3>Waiting time by class</h3><p class="cap">Bedeli kim ödüyor: <var>W</var><sub>G</sub>, <var>W</var><sub>M</sub>, <var>W</var><sub>B</sub> ve <var>W</var>, τ'ya göre.</p></div></div><div class="chart-box"><canvas id="ch5"></canvas></div></div><div class="card"><div class="card-head"><div><h3>Waiting time distribution</h3><p class="cap">τ'daki tepe: timeout anında kurulan cross-match; 2τ'daki küçük kütle: G–B maçları.</p></div></div><div class="chart-box"><canvas id="ch4"></canvas></div></div><div class="card"><div class="card-head"><div><h3>Queue trace N<sub>i</sub>(t)</h3><p class="cap">Dolu şerit: o sınıftan bir oyuncu bekliyor. Her sınıf kuyruğu 0 ya da 1.</p></div></div><div class="chart-box"><canvas id="ch3"></canvas></div></div></div><div class="sub-head"><h3>Detail tables</h3><span>Grafiklerin sayısal karşılığı</span></div><div class="card table-card"><div class="card-head"><div><h3>Per-class performance</h3><p class="cap">Mean ± 95% CI. Sınıf sütununda cross-match rate, o sınıfın maçlarında rakibin farklı sınıftan olma payı.</p></div></div><div class="table-wrap" id="t1"></div></div><div class="card table-card"><div class="card-head"><div><h3>τ sweep</h3><p class="cap">Trade-off eğrisinin tablosu. Çubuklar sütun içi karşılaştırma için.</p></div></div><div class="table-wrap" id="t2"></div></div><div class="charts"><div class="card table-card"><div class="card-head"><div><h3>Match-type matrix</h3><p class="cap">Tüm maçlardaki pay; mor değerler cross-match.</p></div></div><div class="table-wrap" id="t3"></div></div><div class="card table-card"><div class="card-head"><div><h3>Experiment setup</h3><p class="cap">Parametre değişince bu run'ların hepsi tarayıcıda yeniden çalışıyor.</p></div></div><div class="table-wrap" id="t0"></div></div></div>
+  </section>
+
+  <section id="analitik" aria-labelledby="h-an">
+    <div class="sec-head">
+      <span class="sec-no">§3</span>
+      <h2 id="h-an">Analytical model &amp; validation</h2>
+      <p>Model 2 ile aynı: uçlarda kapalı form. τ = 0 single pool yalnızca G–B açıkken geçerli.</p>
+    </div>
+    <div class="analytic"><div class="eq"><div class="formula"><span class="lbl">Structure</span><var>N</var><sub><var>i</var></sub>(<var>t</var>) ∈ {0, 1} ⇒ <var>N</var>(<var>t</var>) ≤ 3; state = (<var>N</var><sub>1</sub>, …, <var>N</var><sub>3</sub>, bekleyenlerin yaşı)</div><div class="formula"><span class="lbl">τ = ∞ · separate classes</span>0 → 1 : <var>λ</var><sub><var>i</var></sub>, 1 → 0 : <var>λ</var><sub><var>i</var></sub> + <var>θ</var><sub><var>i</var></sub> ⇒ <var>L</var><sub><var>i</var></sub> = <var>λ</var><sub><var>i</var></sub> / (2<var>λ</var><sub><var>i</var></sub> + <var>θ</var><sub><var>i</var></sub>), <var>W</var><sub><var>i</var></sub> = 1 / (2<var>λ</var><sub><var>i</var></sub> + <var>θ</var><sub><var>i</var></sub>)</div><div class="formula"><span class="lbl">τ = 0 · single pool (G–B açık)</span>0 → <var>i</var> : <var>λ</var><sub><var>i</var></sub>, <var>i</var> → 0 : <var>λ</var> + <var>θ</var><sub><var>i</var></sub> ⇒ π<sub><var>i</var></sub> ∝ <var>λ</var><sub><var>i</var></sub> / (<var>λ</var> + <var>θ</var><sub><var>i</var></sub>), cross = Σ π<sub><var>i</var></sub>(<var>λ</var> − <var>λ</var><sub><var>i</var></sub>) / (<var>λ</var> Σ π<sub><var>i</var></sub>)</div><div class="formula"><span class="lbl">Little's law</span><var>L</var><sub><var>i</var></sub> = <var>λ</var><sub><var>i</var></sub><var>W</var><sub><var>i</var></sub>, P(abandon<sub><var>i</var></sub>) = <var>θ</var><sub><var>i</var></sub><var>L</var><sub><var>i</var></sub> / <var>λ</var><sub><var>i</var></sub>; <var>θ</var> = 0 ⇒ cross = 1 − Σ<var>p</var><sub><var>i</var></sub><sup>2</sup></div><p>0 &lt; τ &lt; ∞ için τ deterministik; sayılarla kurulan zincir Markov değil. Ara τ değerleri simülasyonla, uç noktalar formülle.</p></div><div class="card table-card"><div class="card-head"><div><h3>Validation at end points</h3><p class="cap">Simülasyonun τ = 0 ve τ = ∞ run'ları ile kapalı form.</p></div></div><div class="table-wrap" id="t4"></div></div></div>
+  </section>
+
+  <section id="sonuc" aria-labelledby="h-con">
+    <div class="sec-head">
+      <span class="sec-no">§4</span>
+      <h2 id="h-con">Conclusion</h2>
+      <p>Bulgular güncel parametrelerle hesaplanıyor.</p>
+    </div>
+    <div class="findings" id="conclusion"></div>
+  </section>
+
+  <footer>IE492 Bitirme Projesi · Boğaziçi Üniversitesi Endüstri Mühendisliği · Danışman: Prof. Aybek Korugan. Event-driven simülasyon tarayıcıda çalışır; aynı parametre aynı sonucu verir.</footer>
+</main>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.js"></script>
+<script>
+// ---- Ortak simülasyon motoru (1v1 eşleştirme, K sınıf, eşik matrisi d[i][j]) ----
+// Kural: i ve j sınıfından iki oyuncu, en az biri d[i][j] kadar beklemişse eşleşebilir.
+//  - Satranç: d[B][S]=0, aynı renk = sonsuz.
+//  - İyi/Kötü: aynı sınıf 0, çapraz = tau.
+//  - İyi/Orta/Kötü: aynı sınıf 0, komşu = tau, İyi-Kötü = 2tau (ya da sonsuz).
+// Gelen oyuncu: eşiği en küçük sınıftan başlayarak, kuyruk başındaki oyuncu (en uzun bekleyen)
+// eşiği geçmişse onunla eşleşir. Bekleyen oyuncu bir eşiğe ulaştığında (timeout olayı) o sınıfın
+// kuyruk başıyla eşleşir. Terk: sabır ~ Exp(theta_i).
+var Engine = (function () {
+  function mulberry32(a) {
+    return function () {
+      a |= 0; a = (a + 0x6D2B79F5) | 0;
+      var t = Math.imul(a ^ (a >>> 15), 1 | a);
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+  function Heap() { this.a = []; }
+  Heap.prototype.push = function (e) {
+    var a = this.a; a.push(e); var i = a.length - 1;
+    while (i > 0) { var p = (i - 1) >> 1; if (a[p].t <= e.t) break; a[i] = a[p]; i = p; }
+    a[i] = e;
+  };
+  Heap.prototype.pop = function () {
+    var a = this.a, top = a[0], last = a.pop();
+    if (a.length) {
+      var i = 0, n = a.length;
+      for (;;) {
+        var l = 2 * i + 1, r = l + 1, m = i;
+        if (l < n && a[l].t < (m === i ? last.t : a[m].t)) m = l;
+        if (r < n && a[r].t < (m === i ? last.t : a[m].t)) m = r;
+        if (m === i) break;
+        a[i] = a[m]; i = m;
+      }
+      a[i] = last;
+    }
+    return top;
+  };
+  Heap.prototype.peek = function () { return this.a[0]; };
+  Heap.prototype.size = function () { return this.a.length; };
+
+  var ARRIVAL = 0, TIMEOUT = 1, ABANDON = 2, stats = { players: 0, runs: 0 };
+  var WAITING = 0, MATCHED = 1, ABANDONED = 2;
+
+  // cfg: {lam, probs[], d[][] (Infinity = asla), theta[], seed, warmup}
+  function Sim(cfg, hooks) {
+    this.cfg = cfg; this.hooks = hooks || {};
+    var K = cfg.probs.length; this.K = K;
+    this.rng = mulberry32(cfg.seed == null ? 42 : cfg.seed);
+    this.t = 0; this.heap = new Heap();
+    this.queues = []; this.qhead = []; this.nWait = []; this.area = [];
+    for (var i = 0; i < K; i++) { this.queues.push([]); this.qhead.push(0); this.nWait.push(0); this.area.push(0); }
+    // her sınıf için diğer sınıflara olan eşiklerin sıralı listesi
+    this.order = []; this.thresholds = [];
+    for (i = 0; i < K; i++) {
+      var js = []; for (var j = 0; j < K; j++) if (isFinite(cfg.d[i][j])) js.push(j);
+      js.sort(function (a, b) { return cfg.d[i][a] - cfg.d[i][b]; });
+      this.order.push(js);
+      var th = []; js.forEach(function (j) { var v = cfg.d[i][j]; if (v > 0 && th.indexOf(v) < 0) th.push(v); });
+      this.thresholds.push(th);
+    }
+    this.p = { arr: [], cls: [], end: [], st: [], mate: [] };
+    this.warmup = cfg.warmup || 0; this.lastT = 0;
+    this.heap.push({ t: this.exp(cfg.lam), k: ARRIVAL, id: -1 });
+  }
+  Sim.prototype.exp = function (rate) { return -Math.log(1 - this.rng()) / rate; };
+  Sim.prototype.advance = function (to) {
+    var s = Math.max(this.lastT, this.warmup);
+    if (to > s) for (var i = 0; i < this.K; i++) this.area[i] += this.nWait[i] * (to - s);
+    this.lastT = to;
+  };
+  // kuyruk başındaki hâlâ bekleyen oyuncu
+  Sim.prototype.head = function (c) {
+    var q = this.queues[c], h = this.qhead[c], st = this.p.st;
+    while (h < q.length && st[q[h]] !== WAITING) h++;
+    this.qhead[c] = h;
+    if (h > 64 && h > q.length / 2) { this.queues[c] = q.slice(h); this.qhead[c] = 0; h = 0; q = this.queues[c]; }
+    return h < q.length ? q[h] : -1;
+  };
+  Sim.prototype.waiting = function (c) { // animasyon için sıradaki bekleyenler
+    var q = this.queues[c], out = [], st = this.p.st;
+    for (var h = this.qhead[c]; h < q.length; h++) if (st[q[h]] === WAITING) out.push(q[h]);
+    return out;
+  };
+  Sim.prototype.match = function (a, b, t) {
+    var P = this.p;
+    P.st[a] = MATCHED; P.st[b] = MATCHED; P.end[a] = t; P.end[b] = t; P.mate[a] = b; P.mate[b] = a;
+    if (this.hooks.match) this.hooks.match(a, b, t);
+  };
+  Sim.prototype.step = function () { // bir olay işler; olay yoksa false
+    if (!this.heap.size()) return false;
+    var e = this.heap.pop(), t = e.t, P = this.p, cfg = this.cfg, self = this;
+    this.advance(t); this.t = t;
+    if (e.k === ARRIVAL) {
+      this.heap.push({ t: t + this.exp(cfg.lam), k: ARRIVAL, id: -1 });
+      var u = this.rng(), c = 0, acc = cfg.probs[0];
+      while (u >= acc && c < this.K - 1) { c++; acc += cfg.probs[c]; }
+      var id = P.arr.length;
+      P.arr.push(t); P.cls.push(c); P.end.push(NaN); P.st.push(WAITING); P.mate.push(-1);
+      if (this.hooks.arrive) this.hooks.arrive(id, t);
+      // en düşük eşikten başla; aynı eşikte en uzun bekleyen
+      var best = -1, bestD = Infinity, bestArr = Infinity, js = this.order[c];
+      for (var k = 0; k < js.length; k++) {
+        var j = js[k], dj = cfg.d[c][j]; if (dj > bestD) break;
+        var h = this.head(j);
+        if (h >= 0 && t - P.arr[h] >= dj - 1e-12) {
+          if (dj < bestD || P.arr[h] < bestArr) { best = h; bestD = dj; bestArr = P.arr[h]; }
+        }
+      }
+      if (best >= 0) { this.nWait[P.cls[best]]--; this.match(best, id, t); return true; }
+      this.queues[c].push(id); this.nWait[c]++;
+      this.thresholds[c].forEach(function (v) { self.heap.push({ t: t + v, k: TIMEOUT, id: id, v: v }); });
+      var th = cfg.theta[c];
+      if (th > 0) this.heap.push({ t: t + this.exp(th), k: ABANDON, id: id });
+    } else if (e.k === TIMEOUT) {
+      var x = e.id; if (P.st[x] !== WAITING) return true;
+      var ci = P.cls[x], best2 = -1, ba = Infinity;
+      for (var j2 = 0; j2 < this.K; j2++) {
+        if (j2 === ci || cfg.d[ci][j2] !== e.v) continue;
+        var h2 = this.head(j2);
+        if (h2 >= 0 && P.arr[h2] < ba) { best2 = h2; ba = P.arr[h2]; }
+      }
+      if (best2 >= 0) { this.nWait[ci]--; this.nWait[P.cls[best2]]--; this.match(x, best2, t); }
+      else if (this.hooks.flex) this.hooks.flex(x, t, e.v);
+    } else {
+      var y = e.id; if (P.st[y] !== WAITING) return true;
+      P.st[y] = ABANDONED; P.end[y] = t; this.nWait[P.cls[y]]--;
+      if (this.hooks.abandon) this.hooks.abandon(y, t);
+    }
+    return true;
+  };
+  Sim.prototype.runUntil = function (T) {
+    while (this.heap.size() && this.heap.peek().t <= T) this.step();
+    this.advance(T); this.t = T;
+  };
+
+  // tam koşu + KPI. opts: trace (zaman serisi penceresi), hist(sim)->durum anahtarı (zaman ağırlıklı dağılım)
+  function run(cfg, T, opts) {
+    opts = opts || {};
+    var sim = new Sim(cfg, {}), wu = cfg.warmup || 0; stats.runs++;
+    var trace = opts.trace ? { t: [], q: [] } : null, hist = opts.hist ? {} : null;
+    var tw = opts.traceFrom || 0, tTo = opts.traceTo || 0;
+    while (sim.heap.size() && sim.heap.peek().t <= T) {
+      if (hist) { var tn = sim.heap.peek().t, s0 = Math.max(sim.t, wu); if (tn > s0) { var key = opts.hist(sim); hist[key] = (hist[key] || 0) + tn - s0; } }
+      sim.step();
+      if (trace && sim.t >= tw && sim.t <= tTo) { trace.t.push(sim.t); trace.q.push(sim.nWait.slice()); }
+    }
+    if (hist) { var s1 = Math.max(sim.t, wu); if (T > s1) { var k2 = opts.hist(sim); hist[k2] = (hist[k2] || 0) + T - s1; } for (var kk in hist) hist[kk] /= (T - wu); }
+    sim.advance(T); sim.t = T; stats.players += sim.p.arr.length;
+    return { kpi: kpis(sim, T), trace: trace, hist: hist, sim: sim };
+  }
+  // bağımsız replikasyonlar: seçilen KPI'lar için ortalama ve %95 GA yarı genişliği (t dağılımı)
+  var T975 = [NaN, 12.706, 4.303, 3.182, 2.776, 2.571, 2.447, 2.365, 2.306, 2.262];
+  function reps(cfg, T, n, pick) {
+    var vals = [];
+    for (var r = 0; r < n; r++) vals.push(pick(run(Object.assign({}, cfg, { seed: 1000 + r }), T).kpi));
+    var out = {};
+    Object.keys(vals[0]).forEach(function (k) {
+      var xs = vals.map(function (v) { return v[k]; }), m = mean(xs), s2 = 0;
+      xs.forEach(function (x) { s2 += (x - m) * (x - m); });
+      out[k] = { m: m, h: T975[n - 1] * Math.sqrt(s2 / (n - 1)) / Math.sqrt(n) };
+    });
+    return out;
+  }
+  // 1v1, toplam kuyruk <= 1 olan durumlar için analitik zincir (tau = 0: tek havuz; tau = sonsuz: her sınıf ayrı)
+  // tek havuz: durum 0 veya "c sınıfından biri bekliyor"; 0->c hızı lam_c, c->0 hızı lam + theta_c
+  function poolOne(lam, probs, theta) {
+    var K = probs.length, w = [], Z = 1, i;
+    for (i = 0; i < K; i++) { w.push(lam * probs[i] / (lam + theta[i])); Z += w[i]; }
+    var pi = w.map(function (x) { return x / Z; }), L = 0, cross = 0, pairs = 0;
+    var cls = pi.map(function (pc, c) {
+      var lc = lam * probs[c]; L += pc; pairs += pc * lam; cross += pc * (lam - lc);
+      return { L: pc, W: pc / lc, ab: theta[c] * pc / lc };
+    });
+    return { cls: cls, L: L, cross: cross / pairs, W: L / lam, ab: cls.reduce(function (a, c, k) { return a + c.ab * probs[k]; }, 0) };
+  }
+  // her sınıf ayrı 0/1 zinciri: 0->1 hızı lam_c, 1->0 hızı lam_c + theta_c
+  function separate(lam, probs, theta) {
+    var L = 0;
+    var cls = probs.map(function (p, c) { var lc = lam * p, pc = lc / (2 * lc + theta[c]); L += pc; return { L: pc, W: 1 / (2 * lc + theta[c]), ab: theta[c] / (2 * lc + theta[c]) }; });
+    return { cls: cls, L: L, cross: 0, W: L / lam, ab: cls.reduce(function (a, c, k) { return a + c.ab * probs[k]; }, 0) };
+  }
+
+  function pct(arr, q) {
+    if (!arr.length) return NaN;
+    var s = arr.slice().sort(function (a, b) { return a - b; });
+    var pos = (s.length - 1) * q, lo = Math.floor(pos), hi = Math.ceil(pos);
+    return s[lo] + (s[hi] - s[lo]) * (pos - lo);
+  }
+  function mean(a) { if (!a.length) return NaN; var s = 0; for (var i = 0; i < a.length; i++) s += a[i]; return s / a.length; }
+
+  function kpis(sim, T) {
+    var P = sim.p, K = sim.K, wu = sim.warmup, span = T - wu;
+    var per = [], pairs = [], i, j;
+    for (i = 0; i < K; i++) { per.push({ n: 0, m: 0, ab: 0, wAll: [], wM: [], zero: 0, cross: 0 }); pairs.push(new Array(K).fill(0)); }
+    var allW = [], allWM = [], totM = 0, totAb = 0, crossPlayers = 0, nAll = 0;
+    for (i = 0; i < P.arr.length; i++) {
+      if (P.arr[i] < wu || P.st[i] === WAITING) continue;
+      var c = P.cls[i], o = per[c], w = P.end[i] - P.arr[i];
+      o.n++; nAll++; o.wAll.push(w); allW.push(w);
+      if (w === 0) o.zero++;
+      if (P.st[i] === MATCHED) {
+        o.m++; totM++; o.wM.push(w); allWM.push(w);
+        var mc = P.cls[P.mate[i]];
+        if (mc !== c) { o.cross++; crossPlayers++; }
+        if (P.mate[i] > i || P.arr[P.mate[i]] < wu) { var a = Math.min(c, mc), b = Math.max(c, mc); pairs[a][b]++; }
+      } else { o.ab++; totAb++; }
+    }
+    var cls = per.map(function (o, k) {
+      return {
+        n: o.n, matchRate: o.n ? o.m / o.n : NaN, abRate: o.n ? o.ab / o.n : NaN,
+        wAll: mean(o.wAll), wM: mean(o.wM), wMed: pct(o.wM, 0.5), wP90: pct(o.wM, 0.9),
+        zeroRate: o.n ? o.zero / o.n : NaN, L: sim.area[k] / span, crossRate: o.m ? o.cross / o.m : NaN,
+        wMatched: o.wM
+      };
+    });
+    var Ltot = 0; for (i = 0; i < K; i++) Ltot += sim.area[i] / span;
+    var nPairs = 0, crossPairs = 0;
+    for (i = 0; i < K; i++) for (j = i; j < K; j++) { nPairs += pairs[i][j]; if (i !== j) crossPairs += pairs[i][j]; }
+    return {
+      cls: cls, pairs: pairs, nPairs: nPairs,
+      total: {
+        n: nAll, matchRate: nAll ? totM / nAll : NaN, abRate: nAll ? totAb / nAll : NaN,
+        wAll: mean(allW), wM: mean(allWM), wP90: pct(allWM, 0.9), L: Ltot,
+        crossRate: nPairs ? crossPairs / nPairs : 0
+      }
+    };
+  }
+
+  var CLS_M = ['n', 'matchRate', 'abRate', 'wAll', 'wM', 'wMed', 'wP90', 'zeroRate', 'L', 'crossRate'];
+  var TOT_M = ['n', 'matchRate', 'abRate', 'wAll', 'wM', 'wP90', 'L', 'crossRate'];
+  function flat(k) {
+    var o = {};
+    k.cls.forEach(function (c, i) { CLS_M.forEach(function (m) { o[m + i] = c[m]; }); });
+    TOT_M.forEach(function (m) { o['T_' + m] = k.total[m]; });
+    return o;
+  }
+  // Satranç CTMC (repo: ctmc_abandon)
+  function ctmcChess(lam, p, theta, N) {
+    N = N || 500; if (!(theta > 0)) return null;
+    var a = p * lam, b = (1 - p) * lam, lp = { 0: 0 }, n;
+    for (n = 1; n < N; n++) {
+      lp[n] = lp[n - 1] + Math.log(a) - Math.log(b + n * theta);
+      lp[-n] = lp[-(n - 1)] + Math.log(b) - Math.log(a + n * theta);
+    }
+    var m = -Infinity, k; for (k in lp) m = Math.max(m, lp[k]);
+    var Z = 0, Lw = 0, Lb = 0;
+    for (k in lp) { var v = Math.exp(lp[k] - m), nn = +k; Z += v; if (nn > 0) Lw += nn * v; if (nn < 0) Lb += -nn * v; }
+    Lw /= Z; Lb /= Z;
+    var dist = {}; for (k in lp) { if (Math.abs(+k) <= 60) dist[k] = Math.exp(lp[k] - m) / Z; }
+    return { dist: dist, Lw: Lw, Lb: Lb, Wb: Lw / a, Ws: Lb / b, abW: theta * Lw / a, abS: theta * Lb / b, L: Lw + Lb };
+  }
+
+  return { flat: flat, stats: stats, Sim: Sim, run: run, reps: reps, poolOne: poolOne, separate: separate, ctmcChess: ctmcChess, WAITING: WAITING, MATCHED: MATCHED, ABANDONED: ABANDONED };
+})();
+if (typeof module !== 'undefined') module.exports = Engine;
+
+// ---- Ortak arayüz: parametre paneli, canlı animasyon, grafik yardımcıları ----
+var App = (function () {
+  var css = {};
+  function readCss() {
+    var s = getComputedStyle(document.documentElement);
+    ['bg', 'surface', 'sunk', 'fg', 'muted', 'faint', 'line', 'lane', 's1', 's2', 's3', 'flex', 'bad', 'pawn-w', 'pawn-w-edge', 'pawn-b', 'pawn-b-edge']
+      .forEach(function (k) { css[k] = s.getPropertyValue('--' + k).trim(); });
+    return css;
+  }
+  function $(id) { return document.getElementById(id); }
+  var nf = function (d) { return function (v) { return isFinite(v) ? v.toLocaleString('tr-TR', { minimumFractionDigits: d, maximumFractionDigits: d }) : '–'; }; };
+  var f0 = nf(0), f1 = nf(1), f2 = nf(2), f3 = nf(3);
+  var pc = function (v, d) { return isFinite(v) ? '%' + nf(d == null ? 1 : d)(v * 100) : '–'; };
+
+  // ---------- Parametre paneli ----------
+  function Params(model, onChange) {
+    var root = $('params'), self = this; this.v = {}; this.model = model;
+    model.params.forEach(function (g) {
+      var box = document.createElement('div'); box.className = 'pgroup';
+      box.innerHTML = '<h4>' + g.group + '</h4>'; root.appendChild(box);
+      g.items.forEach(function (p) {
+        self.v[p.id] = p.value;
+        var el = document.createElement('div');
+        if (p.type === 'switch') {
+          el.className = 'switch';
+          el.innerHTML = '<label for="' + p.id + '">' + p.label + '</label><input type="checkbox" role="switch" id="' + p.id + '"' + (p.value ? ' checked' : '') + '>';
+        } else {
+          el.className = 'param'; el.dataset.pid = p.id;
+          el.innerHTML = '<label for="' + p.id + '"><span>' + p.label + '</span><output id="' + p.id + '_o"></output></label>' +
+            '<input type="range" id="' + p.id + '" min="' + p.min + '" max="' + p.max + '" step="' + p.step + '" value="' + p.value + '">' +
+            ((p.help || p.helpFn) ? '<small id="' + p.id + '_h">' + (p.help || '') + '</small>' : '');
+        }
+        box.appendChild(el);
+        var inp = el.querySelector('input'), timer = null;
+        inp.addEventListener('input', function () {
+          self.v[p.id] = p.type === 'switch' ? inp.checked : parseFloat(inp.value);
+          if (model.normalize) model.normalize(self.v, p.id);
+          self.sync();
+          clearTimeout(timer); timer = setTimeout(function () { onChange(self.v); }, 220);
+        });
+      });
+    });
+    this.sync();
+  }
+  Params.prototype.sync = function () {
+    var v = this.v, model = this.model;
+    model.params.forEach(function (g) {
+      g.items.forEach(function (p) {
+        var inp = $(p.id);
+        if (p.type === 'switch') { inp.checked = !!v[p.id]; return; }
+        if (parseFloat(inp.value) !== v[p.id]) inp.value = v[p.id];
+        $(p.id + '_o').textContent = p.fmt ? p.fmt(v[p.id], v) : v[p.id];
+        if (p.helpFn) $(p.id + '_h').textContent = p.helpFn(v[p.id], v);
+        var on = !p.enabledIf || p.enabledIf(v);
+        inp.disabled = !on; inp.closest('.param').classList.toggle('off', !on);
+      });
+    });
+  };
+
+  // ---------- Canlı animasyon ----------
+  // Düzen: solda sınıf kuyrukları (giriş kapısı → sıra başı), sağda son maçlar, altta canlı N_i(t) şeridi.
+  function nowS() { return performance.now() / 1000; }
+  function ease(f) { return f < 0.5 ? 4 * f * f * f : 1 - Math.pow(-2 * f + 2, 3) / 2; }
+  function Anim(model) {
+    this.model = model; this.canvas = $('stage'); this.ctx = this.canvas.getContext('2d');
+    this.speed = 1.5; this.playing = !matchMedia('(prefers-reduced-motion: reduce)').matches;
+    var self = this;
+    $('play').addEventListener('click', function () { self.playing = !self.playing; self.btn(); });
+    $('reset').addEventListener('click', function () { self.reset(self.v); });
+    $('speed').addEventListener('input', function () { self.speed = parseFloat(this.value); $('speed_o').textContent = self.speed.toLocaleString('tr-TR') + '×'; });
+    this.btn();
+    window.addEventListener('resize', function () { self.layout(); });
+    requestAnimationFrame(function f(ts) { self.frame(ts); requestAnimationFrame(f); });
+  }
+  Anim.prototype.btn = function () { $('play').textContent = this.playing ? 'Pause' : 'Play'; $('play').setAttribute('aria-pressed', this.playing); };
+  Anim.prototype.col = function (c) { var A = this.model.anim; return css[['s1', 's2', 's3'][A.colorIdx ? A.colorIdx[c] : c]]; };
+  Anim.prototype.reset = function (v) {
+    var self = this; this.v = v; this.sprites = new Map(); this.cards = []; this.fx = []; this.hist = [];
+    this.cnt = { m: 0, x: 0, a: 0, n: 0, sw: 0 };
+    var cfg = this.model.buildCfg(v); cfg.warmup = 0; cfg.seed = 7;
+    this.sim = new Engine.Sim(cfg, {
+      arrive: function (id) {
+        var c = self.sim.p.cls[id], y0 = self.laneMid(c);
+        self.sprites.set(id, { x: self.gateX, y: y0, tx: self.gateX, ty: y0, a: 0, ta: 1, c: c, ph: 'q' });
+        self.fx.push({ k: 'in', x: self.gateX, y: y0, t: nowS(), col: self.col(c) });
+      },
+      match: function (a, b) {
+        var P = self.sim.p, ca = P.cls[a], cb = P.cls[b], t = self.sim.t, A = self.model.anim;
+        var cross = ca !== cb && A.countCross;
+        self.cnt.m++; if (cross) self.cnt.x++;
+        [a, b].forEach(function (id) { self.cnt.n++; self.cnt.sw += t - P.arr[id]; var s = self.sprites.get(id); if (s) { s.ph = 'm'; s.fl = { sx: s.x, sy: s.y, t0: nowS() }; } });
+        var first = A.sortByClass ? (ca <= cb ? a : b) : (P.arr[a] <= P.arr[b] ? a : b), second = first === a ? b : a;
+        self.cards.unshift({ a: first, b: second, cross: cross, tag: A.tag(ca, cb, t), wa: t - P.arr[first], wb: t - P.arr[second], born: nowS() });
+      },
+      abandon: function (id) {
+        var P = self.sim.p, s = self.sprites.get(id); self.cnt.a++; self.cnt.n++; self.cnt.sw += self.sim.t - P.arr[id];
+        if (s) { s.ph = 'x'; s.b = nowS(); self.fx.push({ k: 'out', x: s.x, y: s.y, t: nowS() }); }
+      }
+    });
+    this.simTime = 0; this.layout();
+    for (var tt = 0.1; tt <= 10.001; tt += 0.1) { this.sim.runUntil(tt); this.hist.push({ t: tt, q: this.sim.nWait.slice() }); }
+    this.simTime = 10; this.place(true);
+    this.fx = [];
+  };
+  Anim.prototype.layout = function () {
+    var c = this.canvas, W = c.clientWidth || 800, K = this.model.anim.classes.length;
+    this.narrow = W < 680; this.r = 11; this.cardH = 50; this.laneH = K === 2 ? 80 : 68;
+    var lanesH = K * this.laneH, pad = 14;
+    this.labelW = this.narrow ? 88 : 112; this.gateX = this.labelW + 18;
+    if (this.narrow) {
+      this.laneY0 = pad; this.laneR = W - 22; this.arenaX = 8; this.arenaW = W - 16;
+      this.arenaY = this.laneY0 + lanesH + 34; this.slots = 3; this.sparkY = this.arenaY + 3 * this.cardH + 24;
+    } else {
+      this.arenaW = Math.min(300, W * 0.3); this.arenaX = W - this.arenaW - 8; this.laneR = this.arenaX - 34;
+      this.arenaY = 34; this.slots = Math.max(4, Math.floor((lanesH + 20) / this.cardH));
+      var areaH = Math.max(lanesH, this.slots * this.cardH);
+      this.laneY0 = this.arenaY + (areaH - lanesH) / 2; this.sparkY = this.arenaY + areaH + 26;
+    }
+    this.sparkH = 84; this.H = this.sparkY + this.sparkH + 26;
+    var dpr = window.devicePixelRatio || 1;
+    c.width = Math.round(W * dpr); c.height = Math.round(this.H * dpr); c.style.height = this.H + 'px';
+    this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0); this.W = W;
+    this.gap = 2 * this.r + 7; this.cap = Math.max(3, Math.floor((this.laneR - this.gateX - 26) / this.gap));
+  };
+  Anim.prototype.laneMid = function (c) { return this.laneY0 + c * this.laneH + this.laneH / 2; };
+  Anim.prototype.place = function (snap) {
+    var self = this, K = this.model.anim.classes.length;
+    this.over = [];
+    for (var c = 0; c < K; c++) {
+      var list = this.sim.waiting(c), over = 0;
+      list.forEach(function (id, k) {
+        var s = self.sprites.get(id); if (!s) return;
+        s.ty = self.laneMid(c); s.tx = self.laneR - self.r - 4 - k * self.gap;
+        if (k >= self.cap) { s.tx = self.gateX + 20; s.ta = 0; over++; } else s.ta = 1;
+        if (snap) { s.x = s.tx; s.y = s.ty; s.a = s.ta; }
+      });
+      this.over.push(over);
+    }
+    if (this.cards.length > this.slots + 1) {
+      this.cards.slice(this.slots + 1).forEach(function (cd) { self.sprites.delete(cd.a); self.sprites.delete(cd.b); });
+      this.cards.length = this.slots + 1;
+    }
+    this.cards.forEach(function (cd, i) {
+      var y = self.arenaY + i * self.cardH, sa = self.sprites.get(cd.a), sb = self.sprites.get(cd.b), on = i < self.slots ? 1 : 0;
+      var my = y + self.cardH / 2 - 2;
+      if (sa) { sa.tx = self.arenaX + 22; sa.ty = my; sa.ta = on; }
+      if (sb) { sb.tx = self.arenaX + 52; sb.ty = my; sb.ta = on; }
+      cd.y = y; cd.on = on;
+      if (snap) { cd.ya = y; cd.oa = on; cd.born = -9; [sa, sb].forEach(function (s) { if (s) { s.x = s.tx; s.y = s.ty; s.a = s.ta; s.fl = null; } }); }
+    });
+    var tn = nowS();
+    this.sprites.forEach(function (s, id) {
+      if (s.ph === 'x') {
+        if (s.dropY == null) s.dropY = s.y;
+        s.ty = s.dropY + 18; s.tx = s.x; s.ta = 0;
+        if (snap || tn - s.b > 1.4) self.sprites.delete(id);
+      }
+    });
+  };
+  Anim.prototype.frame = function (ts) {
+    if (!this.sim) return;
+    var dt = this.last ? Math.min(0.05, (ts - this.last) / 1000) : 0; this.last = ts;
+    if (this.playing) {
+      this.simTime += dt * this.speed; this.sim.runUntil(this.simTime);
+      this.hist.push({ t: this.simTime, q: this.sim.nWait.slice() });
+      while (this.hist.length && this.hist[0].t < this.simTime - 40) this.hist.shift();
+    }
+    this.place(false);
+    var k = Math.min(1, dt * 8), ka = Math.min(1, dt * 5), tn = nowS();
+    this.sprites.forEach(function (s) {
+      if (s.fl) {
+        var f = Math.min(1, (tn - s.fl.t0) / 0.7), e = ease(f);
+        var cx = (s.fl.sx + s.tx) / 2, cy = Math.min(s.fl.sy, s.ty) - 46;
+        s.x = (1 - e) * (1 - e) * s.fl.sx + 2 * (1 - e) * e * cx + e * e * s.tx;
+        s.y = (1 - e) * (1 - e) * s.fl.sy + 2 * (1 - e) * e * cy + e * e * s.ty;
+        if (f >= 1) s.fl = null;
+      } else { s.x += (s.tx - s.x) * k; s.y += (s.ty - s.y) * k; }
+      s.a += (s.ta - s.a) * (s.ph === 'x' ? Math.min(1, dt * 2.5) : ka);
+    });
+    this.cards.forEach(function (cd) {
+      cd.ya = cd.ya == null ? cd.y : cd.ya + (cd.y - cd.ya) * k;
+      cd.oa = cd.oa == null ? 0 : cd.on ? Math.min(1, cd.oa + dt * 3) : Math.max(0, cd.oa - dt * 4);
+    });
+    this.fx = this.fx.filter(function (f) { return tn - f.t < 0.7; });
+    this.draw(tn);
+    if (!this.cTick || ts - this.cTick > 200) { this.cTick = ts; this.counters(); }
+  };
+  Anim.prototype.counters = function () {
+    var K = this.model.anim.classes.length, q = 0, c = this.cnt; for (var i = 0; i < K; i++) q += this.sim.nWait[i];
+    $('c_t').textContent = f1(this.simTime);
+    $('c_m').textContent = f0(c.m);
+    if ($('c_x')) $('c_x').textContent = c.m ? pc(c.x / c.m, 0) : '–';
+    $('c_a').textContent = this.v.abandon ? f0(c.a) : 'off';
+    $('c_q').textContent = f0(q);
+    if ($('c_w')) $('c_w').textContent = c.n ? f2(c.sw / c.n) : '–';
+  };
+  Anim.prototype.draw = function (tn) {
+    var ctx = this.ctx, A = this.model.anim, K = A.classes.length, self = this, r = this.r, t = this.sim.t, v = this.v;
+    ctx.clearRect(0, 0, this.W, this.H);
+    ctx.textBaseline = 'middle'; ctx.textAlign = 'left';
+    // başlıklar
+    ctx.fillStyle = css.muted; ctx.font = '500 11px ' + fontMono();
+    ctx.fillText('QUEUES  ·  giriş → sıra başı', 8, this.narrow ? 6 : 14);
+    var ay = this.narrow ? this.arenaY - 16 : 14;
+    ctx.fillText(A.arenaTitle.toUpperCase() + '  ·  latest', this.arenaX + 2, ay);
+    // kuyruk şeritleri
+    for (var c = 0; c < K; c++) {
+      var y = this.laneMid(c), h = this.laneH - 14, col = this.col(c);
+      ctx.fillStyle = css.lane; roundRect(ctx, 4, y - h / 2, this.laneR + 24, h, h / 2); ctx.fill();
+      ctx.fillStyle = col; ctx.beginPath(); ctx.arc(20, y - 8, 4, 0, 2 * Math.PI); ctx.fill();
+      ctx.fillStyle = css.fg; ctx.font = '600 13px ' + fontBody(); ctx.fillText(A.classes[c].name, 30, y - 8);
+      ctx.fillStyle = css.muted; ctx.font = '12px ' + fontMono(); ctx.fillText(this.sim.nWait[c] + ' waiting', 14, y + 11);
+      // giriş kapısı
+      ctx.strokeStyle = css.line; ctx.lineWidth = 1.5; ctx.setLineDash([3, 3]);
+      ctx.beginPath(); ctx.arc(this.gateX, y, r + 3, 0, 2 * Math.PI); ctx.stroke(); ctx.setLineDash([]);
+      if (this.over[c] > 0) { ctx.fillStyle = css.muted; ctx.font = '600 11px ' + fontMono(); ctx.fillText('+' + this.over[c], this.gateX + 18, y); }
+      // sıra başı
+      ctx.strokeStyle = css.faint; ctx.lineWidth = 1.5; ctx.beginPath();
+      ctx.moveTo(this.laneR + 8, y - 6); ctx.lineTo(this.laneR + 14, y); ctx.lineTo(this.laneR + 8, y + 6); ctx.stroke();
+    }
+    // maç kartları
+    this.cards.forEach(function (cd) {
+      if (cd.oa < 0.02) return;
+      var age = tn - cd.born, pop = age < 0.9 && age > 0.5 ? 1 + 0.035 * Math.sin((age - 0.5) / 0.4 * Math.PI) : 1;
+      var x = self.arenaX, y = cd.ya + 4, w = self.arenaW, h = self.cardH - 8;
+      ctx.save(); ctx.globalAlpha = cd.oa;
+      ctx.translate(x + w / 2, y + h / 2); ctx.scale(pop, pop); ctx.translate(-(x + w / 2), -(y + h / 2));
+      if (age < 1.6 && age > 0.5) { ctx.shadowColor = cd.cross ? css.flex : 'rgba(20,30,50,0.25)'; ctx.shadowBlur = 14 * (1 - (age - 0.5) / 1.1); }
+      ctx.fillStyle = css.surface; roundRect(ctx, x, y, w, h, 10); ctx.fill(); ctx.shadowBlur = 0;
+      ctx.strokeStyle = cd.cross ? css.flex : css.line; ctx.lineWidth = cd.cross ? 1.6 : 1; ctx.stroke();
+      if (A.board) A.board(ctx, x + 6, y + 6, 62, h - 12, css);
+      ctx.fillStyle = cd.cross ? css.flex : css.fg; ctx.font = (cd.cross ? '600 ' : '500 ') + '12px ' + fontBody();
+      ctx.fillText(cd.tag, x + 80, y + h / 2 - 8);
+      ctx.fillStyle = css.faint; ctx.font = '11px ' + fontMono();
+      ctx.fillText('W ' + f1(cd.wa) + ' · ' + f1(cd.wb), x + 80, y + h / 2 + 9);
+      ctx.restore();
+    });
+    // uçuştaki çiftleri bağlayan çizgi
+    this.cards.forEach(function (cd) {
+      var sa = self.sprites.get(cd.a), sb = self.sprites.get(cd.b);
+      if (!sa || !sb || !(sa.fl || sb.fl)) return;
+      ctx.save(); ctx.globalAlpha = 0.55; ctx.strokeStyle = cd.cross ? css.flex : css.faint; ctx.lineWidth = 1.5; ctx.setLineDash([4, 4]);
+      ctx.beginPath(); ctx.moveTo(sa.x, sa.y); ctx.lineTo(sb.x, sb.y); ctx.stroke(); ctx.restore();
+    });
+    // efektler
+    this.fx.forEach(function (f) {
+      var e = (tn - f.t) / 0.7;
+      ctx.save(); ctx.globalAlpha = (1 - e) * 0.7; ctx.strokeStyle = f.k === 'out' ? css.bad : f.col; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.arc(f.x, f.y, r + 2 + e * 16, 0, 2 * Math.PI); ctx.stroke(); ctx.restore();
+    });
+    // jetonlar
+    this.sprites.forEach(function (s, id) {
+      if (s.a < 0.02) return;
+      ctx.save(); ctx.globalAlpha = Math.max(0, Math.min(1, s.a));
+      if (s.ph === 'q' && A.thresholds) ring(ctx, s.x, s.y, r + 4, t - self.sim.p.arr[id], A.thresholds(s.c, v));
+      ctx.shadowColor = 'rgba(15,20,35,0.22)'; ctx.shadowBlur = s.fl ? 10 : 4; ctx.shadowOffsetY = s.fl ? 3 : 1;
+      A.drawToken(ctx, s.x, s.y, r, s.c, css);
+      ctx.shadowBlur = 0; ctx.shadowOffsetY = 0;
+      if (s.ph === 'x') { ctx.strokeStyle = css.bad; ctx.lineWidth = 2.2; ctx.beginPath(); ctx.moveTo(s.x - 6, s.y - 6); ctx.lineTo(s.x + 6, s.y + 6); ctx.moveTo(s.x + 6, s.y - 6); ctx.lineTo(s.x - 6, s.y + 6); ctx.stroke(); }
+      ctx.restore();
+    });
+    // canlı kuyruk şeridi
+    var sx0 = 8, sw = this.W - 16, sy = this.sparkY, sh = this.sparkH, H = this.hist;
+    ctx.fillStyle = css.muted; ctx.font = '500 11px ' + fontMono(); ctx.fillText('QUEUE LENGTH N_i(t)  ·  son 40 zaman birimi', sx0, sy - 12);
+    ctx.fillStyle = css.sunk; roundRect(ctx, sx0, sy, sw, sh, 8); ctx.fill();
+    var mx = 1; H.forEach(function (p) { p.q.forEach(function (x) { if (x > mx) mx = x; }); });
+    mx = Math.max(mx, K === 2 && !A.countCross ? 4 : 1);
+    var t0 = Math.max(0, this.simTime - 40), px = function (tt) { return sx0 + 6 + (tt - t0) / 40 * (sw - 12); }, py = function (q) { return sy + sh - 8 - q / mx * (sh - 18); };
+    ctx.strokeStyle = css.line; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(sx0 + 6, py(0)); ctx.lineTo(sx0 + sw - 6, py(0)); ctx.stroke();
+    ctx.fillStyle = css.faint; ctx.font = '10px ' + fontMono(); ctx.textAlign = 'right'; ctx.fillText(String(mx), sx0 + sw - 8, sy + 9); ctx.textAlign = 'left';
+    for (c = 0; c < K; c++) {
+      if (H.length < 2) break;
+      ctx.strokeStyle = this.col(c); ctx.lineWidth = 2; ctx.beginPath();
+      var off = (c - (K - 1) / 2) * 1.5;
+      H.forEach(function (p, i) { var X = px(p.t), Y = py(p.q[c]) + off; if (i === 0) ctx.moveTo(X, Y); else { ctx.lineTo(X, py(H[i - 1].q[c]) + off); ctx.lineTo(X, Y); } });
+      ctx.stroke();
+      var lastP = H[H.length - 1]; ctx.fillStyle = this.col(c); ctx.beginPath(); ctx.arc(px(lastP.t), py(lastP.q[c]) + off, 3.5, 0, 2 * Math.PI); ctx.fill();
+    }
+  };
+  function ring(ctx, x, y, R, w, th) {
+    if (!th || !th.length) return;
+    var start = -Math.PI / 2;
+    ctx.lineWidth = 2.5; ctx.lineCap = 'round';
+    if (w < th[0]) {
+      ctx.strokeStyle = css.line; ctx.beginPath(); ctx.arc(x, y, R, 0, 2 * Math.PI); ctx.stroke();
+      if (th[0] > 0) { ctx.strokeStyle = css.faint; ctx.beginPath(); ctx.arc(x, y, R, start, start + 2 * Math.PI * w / th[0]); ctx.stroke(); }
+      ctx.lineCap = 'butt'; return;
+    }
+    ctx.strokeStyle = css.flex; ctx.beginPath(); ctx.arc(x, y, R, 0, 2 * Math.PI); ctx.stroke();
+    if (th.length > 1) {
+      ctx.lineWidth = 2;
+      var R2 = R + 4, f = th[1] > th[0] ? Math.min(1, (w - th[0]) / (th[1] - th[0])) : 1;
+      ctx.setLineDash(f >= 1 ? [] : [2, 3]);
+      ctx.beginPath(); ctx.arc(x, y, R2, start, start + 2 * Math.PI * f); ctx.stroke(); ctx.setLineDash([]);
+    }
+    ctx.lineCap = 'butt';
+  }
+  function roundRect(ctx, x, y, w, h, r) { ctx.beginPath(); ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r); ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath(); }
+  function fontBody() { return '"IBM Plex Sans", system-ui, sans-serif'; }
+  function fontMono() { return '"IBM Plex Mono", ui-monospace, monospace'; }
+  function circleToken(letter) {
+    return function (ctx, x, y, r, c, css) {
+      var col = css[['s1', 's2', 's3'][this.colorIdx ? this.colorIdx[c] : c]];
+      ctx.fillStyle = col; ctx.beginPath(); ctx.arc(x, y, r, 0, 2 * Math.PI); ctx.fill();
+      ctx.strokeStyle = css.surface; ctx.lineWidth = 2; ctx.stroke();
+      ctx.fillStyle = '#ffffff'; ctx.font = '700 11px ' + fontBody(); ctx.textAlign = 'center'; ctx.fillText(letter[c], x, y + 0.5); ctx.textAlign = 'left';
+    };
+  }
+
+  // ---------- Grafik yardımcıları ----------
+  var charts = {};
+  function chart(id, cfg) {
+    if (charts[id]) charts[id].destroy();
+    var o = cfg.options = cfg.options || {};
+    o.responsive = true; o.maintainAspectRatio = false; o.animation = false;
+    o.plugins = o.plugins || {};
+    o.plugins.legend = Object.assign({ labels: { color: css.muted, boxWidth: 12, boxHeight: 12, usePointStyle: true, font: { family: fontBody(), size: 12 } } }, o.plugins.legend || {});
+    o.plugins.tooltip = Object.assign({ backgroundColor: css.surface, titleColor: css.fg, bodyColor: css.fg, borderColor: css.line, borderWidth: 1, padding: 10, titleFont: { family: fontBody() }, bodyFont: { family: fontMono(), size: 12 } }, o.plugins.tooltip || {});
+    ['x', 'y'].forEach(function (ax) {
+      var s = o.scales[ax] = o.scales[ax] || {};
+      s.grid = Object.assign({ color: css.line, drawTicks: false }, s.grid || {});
+      s.border = { display: false };
+      s.ticks = Object.assign({ color: css.muted, padding: 6, font: { family: fontMono(), size: 11 } }, s.ticks || {});
+      if (s.title) s.title = Object.assign({ display: true, color: css.muted, font: { family: fontBody(), size: 12 } }, s.title);
+    });
+    charts[id] = new Chart($(id), cfg);
+    return charts[id];
+  }
+  function chips(id, opts, cur, onPick) {
+    var el = $(id); el.innerHTML = '';
+    opts.forEach(function (o) {
+      var b = document.createElement('button'); b.type = 'button'; b.textContent = o.label; b.setAttribute('aria-pressed', o.key === cur);
+      b.addEventListener('click', function () { onPick(o.key); }); el.appendChild(b);
+    });
+  }
+  // nokta etiketleri (seçili noktalar)
+  var labelPlugin = {
+    id: 'ptLabels',
+    afterDatasetsDraw: function (ch) {
+      var ctx = ch.ctx;
+      ch.data.datasets.forEach(function (ds, di) {
+        if (!ds.ptLabels) return;
+        var meta = ch.getDatasetMeta(di);
+        meta.data.forEach(function (pt, i) {
+          var lab = ds.ptLabels[i]; if (!lab) return;
+          ctx.save(); ctx.fillStyle = css.muted; ctx.font = '11px ' + fontMono(); ctx.textAlign = 'left'; ctx.textBaseline = 'bottom';
+          ctx.fillText(lab, pt.x + 7, pt.y - 5); ctx.restore();
+        });
+      });
+    }
+  };
+
+  function table(id, head, rows, curIdx) {
+    var h = '<table><thead><tr>' + head.map(function (x) { return '<th>' + x + '</th>'; }).join('') + '</tr></thead><tbody>';
+    rows.forEach(function (r, i) { h += '<tr' + (i === curIdx ? ' class="cur"' : '') + '>' + r.map(function (x) { return '<td>' + x + '</td>'; }).join('') + '</tr>'; });
+    $(id).innerHTML = h + '</tbody></table>';
+  }
+
+  // KPI kutuları: {k, v, h (GA yarı genişliği, aynı birimde), s, unit}
+  function tiles(list, cls) {
+    $('tiles').className = 'tiles' + (cls ? ' ' + cls : '');
+    $('tiles').innerHTML = list.map(function (t) {
+      return '<div class="tile">' + (t.g ? '<span class="grp">' + t.g + '</span>' : '') + '<span class="k">' + t.k + '</span><span class="v">' + t.v + (t.unit ? '<small>' + t.unit + '</small>' : '') + '</span><span class="s">' + (t.s || '') + '</span></div>';
+    }).join('');
+  }
+  // deney düzeni tablosu
+  function setup(R, v, model) {
+    if (!$('t0')) return;
+    var mainN = R.main.sim.p.arr.length, rows = [
+      ['Main run (grafikler)', '1 run · T = 30 000 · warm-up 1 000 · seed 42 · ' + f0(mainN) + ' oyuncu'],
+      ['Replications (kutular, tablo)', '5 bağımsız run · T = 20 000 · warm-up 1 000 · seed 1000–1004 · run başına ≈ ' + f0(v.lam * 20000) + ' oyuncu · 95% CI = t₄·s/√5'],
+      [model.sweepLabel, R.sweep.length + ' nokta · T = 20 000 · ortak seed 42 (common random numbers)'],
+      ['Toplam', f0(R.runs) + ' run · ' + f0(R.players) + ' oyuncu · ' + (Math.round(R.ms) / 1000).toLocaleString('tr-TR') + ' s'],
+      ['Kapsam', 'Warm-up öncesi gelenler ve run sonunda bekleyenler (censored) hariç. Zaman birimi: λ = 1 iken ortalama gelişler arası süre.']
+    ];
+    $('t0').innerHTML = '<table class="setup"><tbody>' + rows.map(function (r) { return '<tr><td>' + r[0] + '</td><td>' + r[1] + '</td></tr>'; }).join('') + '</tbody></table>';
+  }
+  // ortalama ± GA hücresi
+  function mh(o, fmt) { return o && isFinite(o.m) ? fmt(o.m) : '–'; }
+  function hh(o, fmt) { return o && isFinite(o.h) && o.h > 0 ? '± ' + fmt(o.h) : ''; }
+  // kırılımlı KPI kutuları: {k, v, h, s, brk: [{dot, l, v}]}
+  function ktiles(list) {
+    var el = $('tiles'); el.className = 'tiles';
+    el.innerHTML = list.map(function (t) {
+      return '<div class="tile"><span class="k">' + t.k + '</span><span class="v">' + t.v + (t.h ? '<small>' + t.h + '</small>' : '') + '</span>'
+        + (t.s ? '<span class="s">' + t.s + '</span>' : '')
+        + (t.brk ? '<div class="brk">' + t.brk.map(function (b) { return '<span><i style="background:' + b.dot + '"></i>' + b.l + ' <b>' + b.v + '</b></span>'; }).join('') + '</div>' : '') + '</div>';
+    }).join('');
+  }
+  // gruplu performans tablosu. groups: [{name, dot, cols:[başlık...]}], rows: {sec} | {l, g:[[hücre...], ...]}
+  function perf(id, groups, rows) {
+    var h = '<table class="perf"><thead><tr><th rowspan="2">Metric</th>' + groups.map(function (g) { return '<th class="grp" colspan="' + g.cols.length + '">' + (g.dot ? '<span class="dot" style="background:' + g.dot + '"></span>' : '') + g.name + '</th>'; }).join('') + '</tr><tr>'
+      + groups.map(function (g) { return g.cols.map(function (c, i) { return '<th' + (i === 0 ? ' class="gs"' : '') + '>' + c + '</th>'; }).join(''); }).join('') + '</tr></thead><tbody>';
+    var n = 1 + groups.reduce(function (a, g) { return a + g.cols.length; }, 0);
+    rows.forEach(function (r) {
+      if (r.sec) { h += '<tr class="sec"><td colspan="' + n + '">' + r.sec + '</td></tr>'; return; }
+      h += '<tr><td>' + r.l + '</td>' + r.g.map(function (cells) { return cells.map(function (c, i) { return '<td class="' + (i === 0 ? 'gs' : i === 1 ? 'ci' : 'an') + '">' + c + '</td>'; }).join(''); }).join('') + '</tr>';
+    });
+    $(id).innerHTML = h + '</tbody></table>';
+  }
+  function bar(val, frac, color) {
+    var w = Math.max(0, Math.min(1, frac || 0)) * 100;
+    return '<div class="bc"><span class="bt"><i style="width:' + w.toFixed(1) + '%;background:' + color + '"></i></span><span>' + val + '</span></div>';
+  }
+  // kırılım etiketi: sembol + sınıf alt indisi
+  function lab(sym, letter, name) {
+    if (sym === 'terk') return 'P(abandon<sub>' + letter + '</sub>)';
+    if (sym === 'zero') return 'P(W<sub>' + letter + '</sub> = 0)';
+    if (!sym) return name;
+    return sym + '<sub>' + letter + '</sub>';
+  }
+  function onTheme(fn) {
+    var mq = matchMedia('(prefers-color-scheme: dark)');
+    var go = function () { readCss(); fn(); };
+    if (mq.addEventListener) mq.addEventListener('change', go);
+    new MutationObserver(go).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+  }
+
+  function boot(model) {
+    readCss();
+    if (window.Chart) Chart.register(labelPlugin);
+    var anim = new Anim(model);
+    var status = $('status'), last = null;
+    function analyze(v) {
+      status.textContent = 'computing…'; status.classList.add('busy');
+      setTimeout(function () {
+        var t0 = performance.now(); Engine.stats.players = 0; Engine.stats.runs = 0;
+        last = model.compute(v);
+        last.ms = performance.now() - t0; last.players = Engine.stats.players; last.runs = Engine.stats.runs;
+        model.render(last, v); setup(last, v, model);
+        status.classList.remove('busy'); status.textContent = 'updated · ' + (Math.round(last.ms) / 1000).toLocaleString('tr-TR') + ' s';
+      }, 30);
+    }
+    var params = new Params(model, function (v) { anim.reset(v); analyze(v); });
+    anim.reset(params.v); analyze(params.v);
+    onTheme(function () { if (last) { model.render(last, params.v); setup(last, params.v, model); } });
+  }
+
+  return { lab: lab, ktiles: ktiles, perf: perf, bar: bar, mh: mh, hh: hh, boot: boot, tiles: tiles, css: css, chart: chart, chips: chips, table: table, circleToken: circleToken, $: $, f0: f0, f1: f1, f2: f2, f3: f3, pc: pc };
+})();
+
+// ---- Beceri sınıflı 1v1 modeller (Model 2 ve 3) için ortak kurgu ----
+var SkillModel = function (O) {
+  // O: { names[], short[], letters[], colorIdx[], params, buildD(v, tau), thresholds(c, v), normalize, findings(R, v), poolAtZero(v) }
+  var I = Infinity, C = App.css, $ = App.$, f0 = App.f0, f1 = App.f1, f2 = App.f2, f3 = App.f3, pc = App.pc;
+  var K = O.names.length, metric = 'w';
+  var colKey = function (c) { return ['s1', 's2', 's3'][O.colorIdx[c]]; };
+  var col = function (c) { return C[colKey(c)]; };
+  var tauLab = function (t) { return isFinite(t) ? 'τ=' + f1(t).replace(/,0$/, '') : 'τ=∞'; };
+  function thetaVec(v) { return O.names.map(function (_, c) { return v.abandon ? v['th' + c] : 0; }); }
+  function probs(v) { return O.probs(v); }
+  var M = {
+    params: O.params, normalize: O.normalize, sweepLabel: 'τ sweep (trade-off curve, tablo)',
+    buildCfg: function (v) { return { lam: v.lam, probs: probs(v), d: O.buildD(v, v.tau), theta: thetaVec(v), seed: 42, warmup: 1000 }; },
+    anim: {
+      classes: O.names.map(function (n) { return { name: n }; }), arenaTitle: 'Matches', countCross: true, colorIdx: O.colorIdx,
+      drawToken: App.circleToken(O.letters),
+      thresholds: function (c, v) { return O.thresholds(c, v); },
+      tag: function (a, b) { return O.short[Math.min(a, b)] + '–' + O.short[Math.max(a, b)] + (a !== b ? ' · cross' : ''); }
+    },
+    compute: function (v) {
+      var cfg = M.buildCfg(v);
+      var main = Engine.run(cfg, 30000, { trace: true, traceFrom: 1000, traceTo: 1400 });
+      var ci = Engine.reps(cfg, 20000, 5, Engine.flat);
+      var taus = [0, 0.5, 1, 2, 3, 4, 6, 8, 12, 16, 20];
+      if (taus.indexOf(v.tau) < 0) taus.push(v.tau);
+      taus.sort(function (a, b) { return a - b; }); taus.push(I);
+      var sweep = taus.map(function (t) {
+        var c2 = Object.assign({}, cfg, { d: O.buildD(v, t) });
+        return { tau: t, k: Engine.run(c2, 20000).kpi };
+      });
+      var th = thetaVec(v), pr = probs(v);
+      var an = { inf: Engine.separate(v.lam, pr, th), zero: O.poolAtZero(v) ? Engine.poolOne(v.lam, pr, th) : null };
+      return { main: main, ci: ci, sweep: sweep, an: an };
+    },
+    render: function (R, v) {
+      var k = R.main.kpi, ci = R.ci, S = R.sweep, ab = v.abandon, pr = probs(v);
+      $('warn').hidden = true;
+      var T_ = function (m) { return ci['T_' + m]; }, C_ = function (m, c) { return ci[m + c]; };
+      var brk = function (m, fmt, sym) { return O.names.map(function (n, c) { return { dot: col(c), l: App.lab(sym, O.letters[c], n), v: App.mh(C_(m, c), fmt) }; }); };
+      var pc2 = function (x) { return pc(x, 2); };
+      App.ktiles([
+        { k: 'Mean waiting time W', v: App.mh(T_('wAll'), f2), h: App.hh(T_('wAll'), f2), brk: brk('wAll', f2, 'W') },
+        { k: 'Mean queue length L = Σ L<sub>i</sub>', v: App.mh(T_('L'), f3), h: App.hh(T_('L'), f3), brk: brk('L', f3, 'L') },
+        { k: 'Cross-match rate', v: App.mh(T_('crossRate'), pc), h: App.hh(T_('crossRate'), pc2), brk: brk('crossRate', pc, null) },
+        ab ? { k: 'Abandonment P(abandon)', v: App.mh(T_('abRate'), pc), h: App.hh(T_('abRate'), pc2), brk: brk('abRate', pc, 'terk') }
+           : { k: '90th percentile wait P90', v: App.mh(T_('wP90'), f2), h: App.hh(T_('wP90'), f2), brk: brk('wP90', f2, 'P90') }
+      ]);
+
+      // ödünleşim eğrisi
+      var mets = [{ key: 'w', label: 'Waiting W' }, { key: 'L', label: 'Queue L' }];
+      if (ab) mets.push({ key: 'ab', label: 'P(abandon)' });
+      if (metric === 'ab' && !ab) metric = 'w';
+      App.chips('chips1', mets, metric, function (m) { metric = m; M.render(R, v); });
+      var yOf = function (kk) { return metric === 'w' ? kk.total.wAll : metric === 'L' ? kk.total.L : kk.total.abRate * 100; };
+      var yAn = function (a) { return metric === 'w' ? a.W : metric === 'L' ? a.L : a.ab * 100; };
+      var curI = -1; S.forEach(function (s, i) { if (s.tau === v.tau) curI = i; });
+      var curve = S.map(function (s) { return { x: s.k.total.crossRate * 100, y: yOf(s.k) }; });
+      var labs = S.map(function (s, i) { return (i === 0 || i === S.length - 1 || i === curI || [2, 6].indexOf(s.tau) >= 0) ? tauLab(s.tau) : ''; });
+      var anPts = [];
+      if (R.an.zero) anPts.push({ x: R.an.zero.cross * 100, y: yAn(R.an.zero), l: 'τ=0' });
+      anPts.push({ x: 0, y: yAn(R.an.inf), l: 'τ=∞' });
+      var yT = metric === 'w' ? 'mean waiting time W' : metric === 'L' ? 'mean queue length L' : 'P(abandon) (%)';
+      App.chart('ch1', { type: 'line', data: { datasets: [
+          { label: 'Simulation (her nokta bir τ)', data: curve, ptLabels: labs, borderColor: C.fg, backgroundColor: S.map(function (_, i) { return i === curI ? C.flex : C.fg; }), borderWidth: 1.5, pointRadius: S.map(function (_, i) { return i === curI ? 7 : 4; }), pointBorderColor: C.surface, pointBorderWidth: 2, tension: 0.2 },
+          { label: 'Analytical end points', data: anPts, showLine: false, pointStyle: 'rectRot', pointRadius: 8, borderColor: C.flex, borderWidth: 2, backgroundColor: 'transparent' }
+        ] }, options: { parsing: false, interaction: { mode: 'nearest', intersect: true },
+        plugins: { tooltip: { callbacks: { title: function (it) { var i = it[0].dataIndex; return it[0].datasetIndex === 0 ? tauLab(S[i].tau) : 'Analytical · ' + it[0].raw.l; }, label: function (it) { return 'cross %' + f1(it.parsed.x) + ' · ' + (metric === 'ab' ? '%' + f2(it.parsed.y) : f3(it.parsed.y)); } } } },
+        scales: { x: { type: 'linear', beginAtZero: true, title: { text: 'cross-match rate (%) → kalite kaybı' } }, y: { beginAtZero: true, title: { text: yT } } } } });
+
+      // ödünleşim tablosu (aynı kartta): kalite | bekleme (toplam + sınıflar) | kuyruk | kayıp
+      var mx = function (f) { return Math.max.apply(null, S.map(f)); };
+      var mxX = mx(function (s) { return s.k.total.crossRate; }), mxW = mx(function (s) { return s.k.total.wAll; });
+      var reg = function (t) { return t === 0 ? 'single pool' : !isFinite(t) ? 'strict separation' : ''; };
+      var head = '<tr><th rowspan="2">τ</th><th class="grp">Quality</th><th class="grp" colspan="' + (K + 2) + '">Waiting time</th><th class="grp">Queue</th>' + (ab ? '<th class="grp">Loss</th>' : '') + '</tr>'
+        + '<tr><th class="gs">cross-match</th><th class="gs">W</th>' + O.names.map(function (n, c) { return '<th><span class="dot" style="background:' + col(c) + '"></span>W<sub>' + O.letters[c] + '</sub></th>'; }).join('') + '<th>P90</th><th class="gs">L</th>' + (ab ? '<th class="gs">P(abandon)</th>' : '') + '</tr>';
+      var body = S.map(function (s, i) {
+        var t = s.k.total;
+        return '<tr' + (i === curI ? ' class="cur"' : '') + '><td>' + tauLab(s.tau).replace('τ=', '') + (reg(s.tau) ? ' <span class="dim">· ' + reg(s.tau) + '</span>' : '') + (i === curI ? ' <span class="pill">current</span>' : '') + '</td>'
+          + '<td class="gs">' + App.bar(pc(t.crossRate), mxX ? t.crossRate / mxX : 0, C.flex) + '</td>'
+          + '<td class="gs">' + App.bar(f3(t.wAll), mxW ? t.wAll / mxW : 0, C.fg) + '</td>'
+          + O.names.map(function (_, c) { return '<td>' + f3(s.k.cls[c].wAll) + '</td>'; }).join('')
+          + '<td>' + f2(t.wP90) + '</td><td class="gs">' + f3(t.L) + '</td>' + (ab ? '<td class="gs">' + pc(t.abRate) + '</td>' : '') + '</tr>';
+      }).join('');
+      $('t2').innerHTML = '<table class="sweep"><thead>' + head + '</thead><tbody>' + body + '</tbody></table>';
+
+      // tau etkisi
+      var fin = S.filter(function (s) { return isFinite(s.tau); });
+      var ds2 = [{ label: 'Cross-match rate', data: fin.map(function (s) { return { x: s.tau, y: s.k.total.crossRate * 100 }; }), borderColor: C.flex, backgroundColor: C.flex, borderWidth: 2, pointRadius: 3, tension: 0.2 }];
+      if (ab) ds2.push({ label: 'P(abandon)', data: fin.map(function (s) { return { x: s.tau, y: s.k.total.abRate * 100 }; }), borderColor: C.bad, backgroundColor: C.bad, borderWidth: 2, pointRadius: 3, tension: 0.2, borderDash: [5, 3] });
+      App.chart('ch2', { type: 'line', data: { datasets: ds2 }, options: { parsing: false, interaction: { mode: 'index', intersect: false },
+        plugins: { legend: { display: ab }, tooltip: { callbacks: { title: function (it) { return 'τ = ' + f1(it[0].parsed.x); }, label: function (it) { return it.dataset.label + ': %' + f1(it.parsed.y); } } } },
+        scales: { x: { type: 'linear', min: 0, max: 20, title: { text: 'cross-match threshold τ' } }, y: { beginAtZero: true, title: { text: 'rate (%)' } } } } });
+
+      // sınıf bazında W, τ'ya göre
+      var ds5 = O.names.map(function (n, c) { return { label: 'W_' + O.letters[c] + ' · ' + n, data: fin.map(function (s2) { return { x: s2.tau, y: s2.k.cls[c].wAll }; }), borderColor: col(c), backgroundColor: col(c), borderWidth: 2, pointRadius: fin.map(function (s2) { return s2.tau === v.tau ? 6 : 2.5; }), tension: 0.2 }; });
+      ds5.push({ label: 'W · total', data: fin.map(function (s2) { return { x: s2.tau, y: s2.k.total.wAll }; }), borderColor: C.fg, backgroundColor: C.fg, borderWidth: 1.5, borderDash: [5, 4], pointRadius: 0, tension: 0.2 });
+      App.chart('ch5', { type: 'line', data: { datasets: ds5 }, options: { parsing: false, interaction: { mode: 'index', intersect: false },
+        plugins: { tooltip: { callbacks: { title: function (it) { return 'τ = ' + f1(it[0].parsed.x); }, label: function (it) { return it.dataset.label + ': ' + f3(it.parsed.y); } } } },
+        scales: { x: { type: 'linear', min: 0, max: 20, title: { text: 'cross-match threshold τ' } }, y: { beginAtZero: true, title: { text: 'mean waiting time W_i' } } } } });
+
+      // kuyruk izi: her sınıf için N_i(t) = 1 aralıkları
+      var tr = R.main.trace, WIN = 120, segs = O.names.map(function () { return []; });
+      O.names.forEach(function (n, c) {
+        var st = null;
+        for (var i = 0; i < tr.t.length; i++) {
+          var tt = tr.t[i] - 1000; if (tt > WIN) break;
+          if (tr.q[i][c] > 0 && st == null) st = tt;
+          if (tr.q[i][c] === 0 && st != null) { segs[c].push({ x: [st, tt], y: n }); st = null; }
+        }
+        if (st != null) segs[c].push({ x: [st, WIN], y: n });
+      });
+      App.chart('ch3', { type: 'bar', data: { labels: O.names, datasets: O.names.map(function (n, c) {
+          return { label: n, data: segs[c], backgroundColor: col(c), borderSkipped: false, borderRadius: 2, grouped: false, barPercentage: 0.7, categoryPercentage: 1 };
+        }) },
+        options: { indexAxis: 'y', plugins: { legend: { display: false }, tooltip: { callbacks: { title: function (it) { return it[0].dataset.label + ' waiting'; }, label: function (it) { var r = it.raw.x; return 't ∈ [' + f1(r[0]) + ', ' + f1(r[1]) + '] · ' + f2(r[1] - r[0]) + ' birim'; } } } },
+          scales: { x: { type: 'linear', min: 0, max: WIN, title: { text: 'time (after warm-up)' } }, y: { grid: { display: false }, ticks: { font: { family: '"IBM Plex Sans", system-ui, sans-serif', size: 12 } } } } } });
+
+      // bekleme dağılımı
+      var maxW = isFinite(v.tau) ? Math.max(4, v.tau * (O.farFactor && v.far ? O.farFactor : 1) * 1.6) : 10;
+      var bw = maxW / 32, bins = []; for (var b = 0; b < 32; b++) bins.push(b * bw);
+      App.chart('ch4', { type: 'bar', data: { labels: bins.map(function (x) { return f1(x + bw / 2); }), datasets: O.names.map(function (n, c) {
+          var w = k.cls[c].wMatched, h = new Array(32).fill(0), pos = 0;
+          w.forEach(function (x) { if (x > 0) { pos++; var j = Math.min(31, Math.floor(x / bw)); h[j]++; } });
+          return { label: n, data: h.map(function (x) { return pos ? x / pos * 100 : 0; }), backgroundColor: col(c), borderRadius: 2, categoryPercentage: 0.95, barPercentage: 0.95 };
+        }) },
+        options: { plugins: { tooltip: { mode: 'index', intersect: false, callbacks: { title: function (it) { var i = it[0].dataIndex; return 'W ∈ [' + f2(bins[i]) + ', ' + f2(bins[i] + bw) + ')'; }, label: function (it) { return it.dataset.label + ': %' + f1(it.parsed.y); } } } },
+          scales: { x: { title: { text: ab ? 'waiting time W (matched, W > 0)' : 'waiting time W (W > 0)' }, ticks: { maxTicksLimit: 9, maxRotation: 0 } }, y: { beginAtZero: true, title: { text: 'share of players (%)' } } } } });
+
+      // sınıf bazında performans (5 replikasyon, ± %95 GA)
+      var cell = function (m, c, fmt) { var o = c === 'T' ? T_(m) : C_(m, c); return [App.mh(o, fmt), App.hh(o, fmt)]; };
+      var fixed = function (x) { return [x, '']; };
+      var row = function (l, m, fmt, totM) { return { l: l, g: O.names.map(function (_, c) { return cell(m, c, fmt); }).concat([totM === null ? fixed('–') : cell(totM || m, 'T', fmt)]) }; };
+      var rows = [{ sec: 'Flow' },
+        { l: 'Arrival rate λ<sub>i</sub>', g: O.names.map(function (_, c) { return fixed(f2(v.lam * pr[c])); }).concat([fixed(f2(v.lam))]) },
+        row('Players per replication', 'n', f0)];
+      if (ab) rows.push(row('P(abandon<sub>i</sub>)', 'abRate', pc));
+      rows.push(row('Cross-match rate', 'crossRate', pc));
+      rows.push({ sec: 'Waiting time' });
+      rows.push(row('Mean wait W<sub>i</sub>' + (ab ? ' (matched + abandoned)' : ''), 'wAll', f3));
+      if (ab) rows.push(row('Mean wait W<sub>i</sub> (matched only)', 'wM', f3));
+      rows.push(row('Median wait' + (ab ? ' (matched)' : ''), 'wMed', f2, null));
+      rows.push(row('P90 wait' + (ab ? ' (matched)' : ''), 'wP90', f2));
+      rows.push(row('P(W = 0) · instant match', 'zeroRate', pc, null));
+      rows.push({ sec: 'Queue' });
+      rows.push(row('Mean queue length L<sub>i</sub>', 'L', f3));
+      rows.push({ l: 'Little check λ<sub>i</sub>·W<sub>i</sub>', g: O.names.map(function (_, c) { return fixed(f3(v.lam * pr[c] * C_('wAll', c).m)); }).concat([fixed(f3(v.lam * T_('wAll').m))]) });
+      App.perf('t1', O.names.map(function (n, c) { return { name: n, dot: col(c), cols: ['mean', '± 95% CI'] }; }).concat([{ name: 'Total', cols: ['mean', '± 95% CI'] }]), rows);
+
+      // eşleşme tipi matrisi
+      var mrows = [];
+      for (var i = 0; i < K; i++) {
+        var r = ['<span class="dot" style="background:' + col(i) + '"></span>' + O.names[i]];
+        for (var j = 0; j < K; j++) { var nn = i <= j ? k.pairs[i][j] : k.pairs[j][i]; r.push(j < i ? '<span class="dim">·</span>' : (i === j ? '' : '<span class="xm">') + pc(nn / k.nPairs) + (i === j ? '' : '</span>')); }
+        mrows.push(r);
+      }
+      App.table('t3', ['Match type'].concat(O.names), mrows);
+
+      // analitik doğrulama
+      var A = R.an, sZ = S[0].k, sI = S[S.length - 1].k, h4 = '';
+      var rel = function (a, b) { if (!(b > 0)) return '<span class="dim">–</span>'; var d = Math.abs(a / b - 1); return '<span class="' + (d < 0.05 ? 'ok' : '') + '">%' + f1(d * 100) + '</span>'; };
+      function block(name, a, s) {
+        h4 += '<tr class="sec"><td colspan="4">' + name + '</td></tr>';
+        var r4 = function (l, x, y, fmt, d) { h4 += '<tr><td>' + l + '</td><td>' + fmt(x) + '</td><td>' + fmt(y) + '</td><td>' + (d || rel(x, y)) + '</td></tr>'; };
+        r4('L', s.total.L, a.L, f3);
+        r4('Cross-match rate', s.total.crossRate, a.cross, pc, a.cross > 0 ? null : '<span class="dim">0 by definition</span>');
+        if (ab) r4('P(abandon)', s.total.abRate, a.ab, pc2);
+        O.names.forEach(function (n, c) { r4('W<sub>' + O.letters[c] + '</sub> · ' + n, s.cls[c].wAll, a.cls[c].W, f3); });
+      }
+      if (A.zero) block('τ = 0 · single pool', A.zero, sZ);
+      block('τ = ∞ · separate classes', A.inf, sI);
+      $('t4').innerHTML = '<table><thead><tr><th>Metric</th><th>Simulation</th><th>Analytical</th><th>Rel. error</th></tr></thead><tbody>' + h4 + '</tbody></table>';
+
+      // sonuç
+      var at = function (t) { for (var i = 0; i < S.length; i++) if (S[i].tau === t) return S[i].k; return null; };
+      var F = O.findings(R, v, { at: at, S: S, cur: S[curI], first: S[0], last: S[S.length - 1], fmt: { f1: f1, f2: f2, f3: f3, pc: pc, tauLab: tauLab } });
+      $('conclusion').innerHTML = F.map(function (f, i) { return '<div class="finding' + (f[2] ? ' key' : '') + '"><span class="n">' + (i + 1) + ' · ' + f[0] + '</span><p>' + f[1] + '</p></div>'; }).join('');
+    }
+  };
+  App.boot(M);
+};
+// ---- Model 3: Good–Medium–Bad, neighbour threshold τ, far threshold 2τ, heterogeneous abandonment ----
+(function () {
+  var I = Infinity, f1 = App.f1, f2 = App.f2, f3 = App.f3, pc = App.pc;
+  var mono = function (x) { return '<span class="mono">' + x + '</span>'; };
+  var sab = function (x) { return 'Ortalama sabır 1/θ = ' + f1(1 / x); };
+  var on = function (v) { return v.abandon; };
+  SkillModel({
+    names: ['Good', 'Medium', 'Bad'], short: ['G', 'M', 'B'], letters: ['G', 'M', 'B'], colorIdx: [0, 2, 1], farFactor: 2,
+    probs: function (v) { return [v.pg, Math.max(0, 1 - v.pg - v.pb), v.pb]; },
+    normalize: function (v, id) {
+      var r = function (x) { return Math.round(x * 100) / 100; };
+      if (v.pg + v.pb > 0.9) { if (id === 'pg') v.pb = r(0.9 - v.pg); else v.pg = r(0.9 - v.pb); }
+    },
+    params: [
+      { group: 'Arrival process', items: [
+        { id: 'lam', label: 'Arrival rate λ', min: 0.2, max: 3, step: 0.1, value: 1, fmt: f1, help: 'Poisson geliş hızı.' },
+        { id: 'pg', label: 'Good share p_G', min: 0.05, max: 0.85, step: 0.05, value: 0.2, fmt: f2, helpFn: function (x, v) { return 'p_M = 1 − p_G − p_B = ' + f2(1 - v.pg - v.pb); } },
+        { id: 'pb', label: 'Bad share p_B', min: 0.05, max: 0.85, step: 0.05, value: 0.3, fmt: f2 }
+      ] },
+      { group: 'Matching policy', items: [
+        { id: 'tau', label: 'Neighbour threshold τ', min: 0, max: 20, step: 0.5, value: 3, fmt: f1, help: 'G–M ve M–B, τ sonra eşleşebilir.' },
+        { id: 'far', type: 'switch', label: 'G–B match (2τ sonra)', value: true }
+      ] },
+      { group: 'Abandonment', items: [
+        { id: 'abandon', type: 'switch', label: 'Abandonment', value: true },
+        { id: 'th0', label: 'θ_G · Good', min: 0.01, max: 0.5, step: 0.01, value: 0.08, fmt: f2, helpFn: sab, enabledIf: on },
+        { id: 'th1', label: 'θ_M · Medium', min: 0.01, max: 0.5, step: 0.01, value: 0.06, fmt: f2, helpFn: sab, enabledIf: on },
+        { id: 'th2', label: 'θ_B · Bad', min: 0.01, max: 0.5, step: 0.01, value: 0.04, fmt: f2, helpFn: sab, enabledIf: on }
+      ] }
+    ],
+    buildD: function (v, t) { var far = v.far ? 2 * t : I; return [[0, t, far], [t, 0, t], [far, t, 0]]; },
+    thresholds: function (c, v) { return c === 1 ? [v.tau] : v.far ? [v.tau, 2 * v.tau] : [v.tau]; },
+    poolAtZero: function (v) { return v.far; },
+    findings: function (R, v, X) {
+      var F = [], k = R.main.kpi, P = k.pairs, N = k.nPairs, a = X.first.k.total, b = X.last.k.total, cu = X.cur.k.total;
+      var crossN = P[0][1] + P[1][2] + P[0][2], viaM = P[0][1] + P[1][2];
+      F.push(['Trade-off', 'τ = 0' + (v.far ? '' : ' (G–B kapalı)') + ': cross-match ' + pc(a.crossRate) + ', W = ' + mono(f2(a.wAll)) + '. τ = ∞: cross-match %0, W = ' + mono(f2(b.wAll)) + '. Mevcut τ = ' + f1(v.tau) + ': cross-match ' + pc(cu.crossRate) + ', W = ' + mono(f2(cu.wAll)) + '. Sınıf başına arrival rate düştüğü için strict separation\'ın bedeli Model 2\'den yüksek.', true]);
+      F.push(['Medium köprü sınıf', 'Cross-match\'lerin ' + pc(crossN ? viaM / crossN : 0) + ' kadarında bir taraf Medium. Uç sınıfların fazlası önce Medium\'a akıyor; Medium\'un cross-match rate\'i ' + pc(k.cls[1].crossRate) + '.']);
+      F.push(['G–B match', v.far ? 'Tüm maçların ' + pc(P[0][2] / N, 2) + ' kadarı G–B. Yalnızca iki uç da 2τ = ' + f1(2 * v.tau) + ' beklemiş ve Medium kuyruğu boşken oluşuyor.' : 'Kapalı: G–B maçı yok. τ = 0 bile single pool olmuyor, bu yüzden τ = 0 için analitik çözüm verilmedi.']);
+      if (v.abandon) { var z = X.first.k.cls, q = X.last.k.cls;
+        F.push(['Abandonment', 'P(abandon) G ' + pc(k.cls[0].abRate) + ', M ' + pc(k.cls[1].abRate) + ', B ' + pc(k.cls[2].abRate) + '. τ = 0 → ∞ artış: G ' + f1((q[0].abRate - z[0].abRate) * 100) + ', M ' + f1((q[1].abRate - z[1].abRate) * 100) + ', B ' + f1((q[2].abRate - z[2].abRate) * 100) + ' puan. Seyrek ve sabırsız sınıf en çok kaybediyor.']); }
+      F.push(['Queue ve state space', 'N<sub>i</sub>(t) ∈ {0, 1}, L ≤ 3 (şu an L = ' + f3(cu.L) + '). Karmaşıklık iki deterministik eşikten geliyor: waiting time dağılımında τ ve 2τ\'da kütle var.']);
+      F.push(['Sonraki adım', 'Phase 3: n v n takımlar, team partitioning ve k boyutlu skill. Orada "kuyruk ≤ K" sınırı kalkıyor.']);
+      return F;
+    }
+  });
+})();
+
+</script>
+

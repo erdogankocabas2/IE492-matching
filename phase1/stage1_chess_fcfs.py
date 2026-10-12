@@ -1,20 +1,28 @@
 # %% [markdown]
 # # IE492 — Aşama 1: Renk bazlı FCFS satranç eşleştirmesi (terkli model)
-# 
+#
 # **Model**
 # - Oyuncular Poisson($\lambda$) süreciyle gelir.
 # - Her oyuncu $p$ olasılıkla **beyaz**, $1-p$ olasılıkla **siyah**.
 # - FCFS: sıranın başındaki beyaz ile sıranın başındaki siyah anında eşleşir. Bu yüzden aynı anda yalnızca tek renk bekleyebilir.
 # - **Terk:** her bekleyen oyuncunun sabrı $\text{Exp}(\theta)$; sabrı biten oyuncu kuyruktan ayrılır.
-# 
-# **KPI'lar (renk bazında):** eşleşme oranı, terk oranı, ortalama / medyan / p90 bekleme, hiç beklemeden eşleşme oranı, zaman ortalamalı kuyruk uzunluğu.
-# 
-# **Analitik karşılaştırma:** $X(t) = \#\text{beyaz} - \#\text{siyah}$ bir doğum-ölüm zinciri (CTMC). $n>0$ iken $n \to n+1$ hızı $p\lambda$, $n \to n-1$ hızı $(1-p)\lambda + n\theta$; $n<0$ tarafı simetrik. Durağan dağılımdan Little yasasıyla:
+#
+# **KPI'lar (renk bazında):** eşleşme oranı, terk oranı, ortalama / medyan / p90 bekleme, hiç beklemeden eşleşme oranı P(W=0), zaman ortalamalı kuyruk uzunluğu (L_i).
+#
+# **Analitik Karşılaştırma & CTMC:**
+# $X(t) = \#\text{beyaz} - \#\text{siyah}$ tek boyutlu bir doğum-ölüm zinciri (Birth-Death Process / CTMC).
+# - $n > 0$ iken $n \to n+1$ geçiş hızı $p\lambda$, $n \to n-1$ geçiş hızı $(1-p)\lambda + n\theta$.
+# - $n < 0$ iken $n \to n-1$ geçiş hızı $(1-p)\lambda$, $n \to n+1$ geçiş hızı $p\lambda + |n|\theta$.
+# Durağan dağılımdan Little Yasası:
 # $$E[W_\text{beyaz}] = \frac{L_\text{beyaz}}{p\lambda}, \qquad P(\text{beyaz terk}) = \frac{\theta L_\text{beyaz}}{p\lambda}$$
 
 # %%
+import argparse
+import csv
 import heapq
 import math
+import os
+import sys
 from collections import deque
 
 import numpy as np
@@ -25,33 +33,20 @@ COLOR_NAME = {WHITE: "beyaz", BLACK: "siyah"}
 WAITING, MATCHED, ABANDONED = 0, 1, 2
 
 # %% [markdown]
-# ## Parametreler
-# Zaman birimi = ortalama gelişler arası süre ($\lambda = 1$ ise dakika gibi düşünülebilir).
+# ## Simülasyon Motoru
 
 # %%
-LAM = 1.0        # gelis hizi
-P = 0.6          # beyaz olma olasiligi
-THETA = 0.05     # terk hizi (ortalama sabir = 1/THETA)
-T = 100_000      # simulasyon suresi
-WARMUP = 1_000   # isinma suresi, KPI'lara dahil edilmez
-SEED = 42
-
-# %% [markdown]
-# ## Simülasyon
-# Olay tabanlı simülasyon. Terk olayları bir heap'te tutulur; kuyrukta terk etmiş oyuncular eşleşme anında atlanır (lazy deletion).
-
-# %%
-def simulate(lam, p, theta, T, warmup=0.0, seed=None):
+def simulate(lam=1.0, p=0.6, theta=0.05, T=20_000, warmup=1_000.0, seed=42):
+    """
+    Renk bazlı FCFS satranç eşleştirme olay tabanlı simülasyonu.
+    """
     rng = np.random.default_rng(seed)
 
-    # oyuncu bazli kayitlar (indeks = oyuncu id)
     arrival, color, end, status = [], [], [], []
-
     queues = {WHITE: deque(), BLACK: deque()}
     n_waiting = {WHITE: 0, BLACK: 0}
-    abandon_heap = []  # (son_tarih, oyuncu_id)
+    abandon_heap = []
 
-    # zaman ortalamali kuyruk uzunlugu ve iz
     area = {WHITE: 0.0, BLACK: 0.0}
     last_t = 0.0
     trace_t, trace_x = [0.0], [0]
@@ -70,9 +65,8 @@ def simulate(lam, p, theta, T, warmup=0.0, seed=None):
 
     t = 0.0
     while True:
-        t_next = t + rng.exponential(1 / lam)
+        t_next = t + rng.exponential(1.0 / lam)
 
-        # bir sonraki gelisten once gerceklesen terkler
         while abandon_heap and abandon_heap[0][0] <= min(t_next, T):
             d, i = heapq.heappop(abandon_heap)
             if status[i] == WAITING:
@@ -91,9 +85,11 @@ def simulate(lam, p, theta, T, warmup=0.0, seed=None):
         other = 1 - c
 
         i = len(arrival)
-        arrival.append(t); color.append(c); end.append(np.nan); status.append(WAITING)
+        arrival.append(t)
+        color.append(c)
+        end.append(np.nan)
+        status.append(WAITING)
 
-        # karsi renkte sira basindaki (hala bekleyen) oyuncuyu bul
         partner = None
         while queues[other]:
             j = queues[other].popleft()
@@ -109,7 +105,7 @@ def simulate(lam, p, theta, T, warmup=0.0, seed=None):
             queues[c].append(i)
             n_waiting[c] += 1
             if theta > 0:
-                heapq.heappush(abandon_heap, (t + rng.exponential(1 / theta), i))
+                heapq.heappush(abandon_heap, (t + rng.exponential(1.0 / theta), i))
         record_trace(t)
 
     players = {
@@ -123,12 +119,8 @@ def simulate(lam, p, theta, T, warmup=0.0, seed=None):
     trace = (np.array(trace_t), np.array(trace_x))
     return players, avg_queue, trace
 
-# %% [markdown]
-# ## KPI hesabı
-# Isınma süresinden önce gelenler ve simülasyon sonunda hâlâ bekleyenler (sansürlü) KPI'lara dahil edilmez.
 
-# %%
-def compute_kpis(players, avg_queue, warmup=0.0):
+def compute_kpis(players, avg_queue, warmup=1_000.0):
     kpis = {}
     for c in (WHITE, BLACK):
         sel = (players["color"] == c) & (players["arrival"] >= warmup) & (players["status"] != WAITING)
@@ -137,36 +129,70 @@ def compute_kpis(players, avg_queue, warmup=0.0):
         w_matched = w[st == MATCHED]
         kpis[COLOR_NAME[c]] = {
             "oyuncu sayisi": int(sel.sum()),
-            "eslesme orani": float((st == MATCHED).mean()),
-            "terk orani": float((st == ABANDONED).mean()),
-            "ort. bekleme (tumu)": float(w.mean()),
-            "ort. bekleme (eslesen)": float(w_matched.mean()),
-            "medyan bekleme (eslesen)": float(np.median(w_matched)),
-            "p90 bekleme (eslesen)": float(np.percentile(w_matched, 90)),
-            "beklemeden eslesme orani": float((w == 0).mean()),
+            "eslesme orani": float((st == MATCHED).mean()) if len(st) > 0 else 0.0,
+            "terk orani": float((st == ABANDONED).mean()) if len(st) > 0 else 0.0,
+            "ort. bekleme (tumu)": float(w.mean()) if len(w) > 0 else 0.0,
+            "ort. bekleme (eslesen)": float(w_matched.mean()) if len(w_matched) > 0 else 0.0,
+            "medyan bekleme (eslesen)": float(np.median(w_matched)) if len(w_matched) > 0 else 0.0,
+            "p90 bekleme (eslesen)": float(np.percentile(w_matched, 90)) if len(w_matched) > 0 else 0.0,
+            "beklemeden eslesme orani": float((w == 0).mean()) if len(w) > 0 else 0.0,
             "ort. kuyruk uzunlugu": avg_queue[c],
         }
+
+    sel_all = (players["arrival"] >= warmup) & np.isin(players["status"], [MATCHED, ABANDONED])
+    st_all = players["status"][sel_all]
+    w_all = players["end"][sel_all] - players["arrival"][sel_all]
+    w_m_all = w_all[st_all == MATCHED]
+
     kpis["toplam"] = {
-        "ort. kuyruk uzunlugu": avg_queue[WHITE] + avg_queue[BLACK]
+        "oyuncu sayisi": int(len(st_all)),
+        "eslesme orani": float((st_all == MATCHED).mean()) if len(st_all) > 0 else 0.0,
+        "terk orani": float((st_all == ABANDONED).mean()) if len(st_all) > 0 else 0.0,
+        "ort. bekleme (tumu)": float(w_all.mean()) if len(w_all) > 0 else 0.0,
+        "ort. bekleme (eslesen)": float(w_m_all.mean()) if len(w_m_all) > 0 else 0.0,
+        "p90 bekleme (eslesen)": float(np.percentile(w_m_all, 90)) if len(w_m_all) > 0 else 0.0,
+        "ort. kuyruk uzunlugu": avg_queue[WHITE] + avg_queue[BLACK],
     }
     return kpis
 
 
 def print_kpis(kpis):
-    names = [k for k in next(iter(kpis.values())).keys()]
-    print(f"{'KPI':<28}{'beyaz':>12}{'siyah':>12}")
-    for n in names:
-        print(f"{n:<28}{kpis['beyaz'][n]:>12.3f}{kpis['siyah'][n]:>12.3f}")
-    if "toplam" in kpis:
-        print(f"{'ort. toplam kuyruk (|B-S|)':<28}{kpis['toplam']['ort. kuyruk uzunlugu']:>24.3f}")
+    print("=" * 66)
+    print(f"{'KPI':<28}{'Beyaz':>18}{'Siyah':>18}")
+    print("-" * 66)
+    metrics = [
+        "oyuncu sayisi", "eslesme orani", "terk orani", "ort. bekleme (tumu)",
+        "ort. bekleme (eslesen)", "medyan bekleme (eslesen)", "p90 bekleme (eslesen)",
+        "beklemeden eslesme orani", "ort. kuyruk uzunlugu"
+    ]
+    for m in metrics:
+        v_w = kpis["beyaz"][m]
+        v_b = kpis["siyah"][m]
+        if m in ("eslesme orani", "terk orani", "beklemeden eslesme orani"):
+            print(f"{m:<28}{f'%{100*v_w:.2f}':>18}{f'%{100*v_b:.2f}':>18}")
+        elif m == "oyuncu sayisi":
+            print(f"{m:<28}{int(v_w):>18d}{int(v_b):>18d}")
+        else:
+            print(f"{m:<28}{v_w:>18.3f}{v_b:>18.3f}")
+    print("-" * 66)
+    tot = kpis["toplam"]
+    print(f"Toplam Ortalama Kuyruk (L)    : {tot['ort. kuyruk uzunlugu']:>10.3f}")
+    print(f"Toplam Ortalama Bekleme (W)   : {tot['ort. bekleme (tumu)']:>10.3f}")
+    print(f"Genel Terk Oranı              : %{100*tot['terk orani']:>9.2f}")
+    print("=" * 66)
+
 
 # %% [markdown]
-# ## Analitik model (CTMC)
+# ## Analitik Model (Birth-Death CTMC)
 
 # %%
 def ctmc_abandon(lam, p, theta, N=500):
-    # durum n: n>0 -> n beyaz bekliyor, n<0 -> |n| siyah bekliyor
-    a, b = p * lam, (1 - p) * lam
+    """
+    X(t) = #beyaz - #siyah tek boyutlu CTMC analitik çözücüsü.
+    """
+    if not theta > 0:
+        return None
+    a, b = p * lam, (1.0 - p) * lam
     log_pi = {0: 0.0}
     for n in range(1, N):
         log_pi[n] = log_pi[n - 1] + math.log(a) - math.log(b + n * theta)
@@ -174,117 +200,246 @@ def ctmc_abandon(lam, p, theta, N=500):
     m = max(log_pi.values())
     pi = {n: math.exp(v - m) for n, v in log_pi.items()}
     Z = sum(pi.values())
-    L_w = sum(n * v for n, v in pi.items() if n > 0) / Z
-    L_b = sum(-n * v for n, v in pi.items() if n < 0) / Z
+    pi = {n: v / Z for n, v in pi.items()}
+    L_w = sum(n * v for n, v in pi.items() if n > 0)
+    L_b = sum(-n * v for n, v in pi.items() if n < 0)
     return {
+        "dist": pi,
         "beyaz": {"ort. bekleme (tumu)": L_w / a, "terk orani": theta * L_w / a, "ort. kuyruk uzunlugu": L_w},
         "siyah": {"ort. bekleme (tumu)": L_b / b, "terk orani": theta * L_b / b, "ort. kuyruk uzunlugu": L_b},
-        "toplam": {"ort. kuyruk uzunlugu": L_w + L_b},
+        "toplam": {"ort. kuyruk uzunlugu": L_w + L_b, "ort. bekleme (tumu)": (L_w + L_b) / lam,
+                   "terk orani": p * (theta * L_w / a) + (1.0 - p) * (theta * L_b / b)},
+        "Lw": L_w, "Lb": L_b, "L": L_w + L_b, "Ww": L_w / a, "Wb": L_b / b,
+        "abW": theta * L_w / a, "abB": theta * L_b / b
     }
 
-# %% [markdown]
-# ## Tek senaryo
 
-# %%
-players, avg_queue, trace = simulate(LAM, P, THETA, T, WARMUP, seed=SEED)
-kpis = compute_kpis(players, avg_queue, WARMUP)
-print_kpis(kpis)
+T975 = [math.nan, 12.706, 4.303, 3.182, 2.776, 2.571, 2.447, 2.365, 2.306, 2.262]
 
-print("\nSimulasyon vs CTMC")
-theory = ctmc_abandon(LAM, P, THETA)
-for col in ("beyaz", "siyah"):
-    for k in ("ort. bekleme (tumu)", "terk orani", "ort. kuyruk uzunlugu"):
-        print(f"{col:<6} {k:<22} sim={kpis[col][k]:8.3f}   ctmc={theory[col][k]:8.3f}")
-print(f"{'toplam':<6} {'ort. kuyruk (|X|)':<22} sim={kpis['toplam']['ort. kuyruk uzunlugu']:8.3f}   ctmc={theory['toplam']['ort. kuyruk uzunlugu']:8.3f}")
+def run_replications(lam, p, theta, T=20_000, n_reps=5, warmup=1_000.0, seed0=1000):
+    """
+    n bağımsız replikasyon ile ortalama ve %95 güven aralığı hesaplar.
+    """
+    records = []
+    for r in range(n_reps):
+        pl, aq, _ = simulate(lam, p, theta, T, warmup, seed=seed0 + r)
+        records.append(compute_kpis(pl, aq, warmup))
 
-print(f"\nCogunluk rengi icin terk alt siniri (2p-1)/p = {max(2*P-1, 0)/P:.3f}")
+    def ci(vals):
+        arr = np.array(vals, dtype=float)
+        m = float(np.mean(arr))
+        h = T975[n_reps - 1] * float(np.std(arr, ddof=1)) / math.sqrt(n_reps) if n_reps > 1 else 0.0
+        return m, h
 
-# %%
-fig, axs = plt.subplots(1, 3, figsize=(16, 4))
+    res = {}
+    for grp in ("beyaz", "siyah", "toplam"):
+        res[grp] = {}
+        for k in records[0][grp]:
+            res[grp][k] = ci([rec[grp][k] for rec in records])
+    return res
 
-tt, xx = trace
-window = (tt >= WARMUP) & (tt <= WARMUP + 2000)
 
-# 1. Isaretli kuyruk farki (X(t) = #beyaz - #siyah)
-axs[0].step(tt[window], xx[window], where="post", color="tab:blue")
-axs[0].axhline(0, color="gray", lw=0.8, linestyle="--")
-axs[0].set_xlabel("zaman")
-axs[0].set_ylabel("#beyaz - #siyah")
-axs[0].set_title("Kuyruk Farkı: X(t)")
+def fmt_ci(mh, digits=3, pct=False):
+    m, h = mh
+    if pct:
+        return f"{100 * m:.1f}% ± {100 * h:.1f}"
+    return f"{m:.{digits}f} ± {h:.{digits}f}"
 
-# 2. Herhangi bir andaki toplam kuyruk: |X(t)|
-abs_xx = np.abs(xx)
-axs[1].step(tt[window], abs_xx[window], where="post", color="tab:purple")
-axs[1].axhline(kpis["toplam"]["ort. kuyruk uzunlugu"], color="red", linestyle=":", lw=1.5,
-                label=f"Ort. = {kpis['toplam']['ort. kuyruk uzunlugu']:.2f}")
-axs[1].set_xlabel("zaman")
-axs[1].set_ylabel("Anlık Toplam Kuyruk |X(t)|")
-axs[1].set_title("Anlık Toplam Kuyruk: |beyaz - siyah|")
-axs[1].legend()
 
-# 3. Bekleme suresi dagilimi
-for c in (WHITE, BLACK):
-    sel = (players["color"] == c) & (players["status"] == MATCHED) & (players["arrival"] >= WARMUP)
-    w = players["end"][sel] - players["arrival"][sel]
-    axs[2].hist(w[w > 0], bins=60, alpha=0.6, label=COLOR_NAME[c], density=True)
-axs[2].set_xlabel("bekleme süresi (eşleşen, w > 0)")
-axs[2].set_ylabel("yoğunluk")
-axs[2].set_title("Bekleme Süresi Dağılımı")
-axs[2].legend()
-plt.tight_layout()
-plt.show()
+def format_table(head, rows):
+    widths = [max(len(str(x)) for x in col) for col in zip(head, *rows)]
+    line = "  ".join(str(h).ljust(widths[i]) if i == 0 else str(h).rjust(widths[i]) for i, h in enumerate(head))
+    sep = "-" * len(line)
+    body = ["  ".join(str(x).ljust(widths[i]) if i == 0 else str(x).rjust(widths[i]) for i, x in enumerate(r)) for r in rows]
+    return "\n".join([line, sep] + body)
+
 
 # %% [markdown]
-# ## Duyarlılık analizi: $p$ ve $\theta$
+# ## Ana Deney Akışı & Çıktılar
 
 # %%
-P_GRID = [0.5, 0.55, 0.6, 0.7]
-THETA_GRID = [0.01, 0.05, 0.2]
-T_SWEEP = 100_000
+def run_phase1_experiments(lam=1.0, p=0.6, theta=0.05, T=20_000, n_reps=5, warmup=1_000.0,
+                           plot=False, out_dir="results"):
+    os.makedirs(out_dir, exist_ok=True)
+    fig_dir = os.path.join(out_dir, "figures")
+    os.makedirs(fig_dir, exist_ok=True)
 
-rows = []
-for theta in THETA_GRID:
-    for p in P_GRID:
-        pl, aq, _ = simulate(LAM, p, theta, T_SWEEP, WARMUP, seed=SEED)
-        k = compute_kpis(pl, aq, WARMUP)
-        th = ctmc_abandon(LAM, p, theta)
-        rows.append((p, theta, k, th))
+    ct = ctmc_abandon(lam, p, theta)
+    cx = lambda x, d=3, pct=False: "–" if ct is None else (f"{100 * x:.1f}%" if pct else f"{x:.{d}f}")
 
-print(f"{'p':>5}{'theta':>7} | {'W bekleme sim':>13}{'ctmc':>8} | {'W terk sim':>10}{'ctmc':>8} | {'S bekleme sim':>13}{'ctmc':>8} | {'S terk sim':>10}{'ctmc':>8}")
-for p, theta, k, th in rows:
-    print(f"{p:>5}{theta:>7} | "
-          f"{k['beyaz']['ort. bekleme (tumu)']:>13.2f}{th['beyaz']['ort. bekleme (tumu)']:>8.2f} | "
-          f"{k['beyaz']['terk orani']:>10.3f}{th['beyaz']['terk orani']:>8.3f} | "
-          f"{k['siyah']['ort. bekleme (tumu)']:>13.2f}{th['siyah']['ort. bekleme (tumu)']:>8.2f} | "
-          f"{k['siyah']['terk orani']:>10.3f}{th['siyah']['terk orani']:>8.3f}")
+    print(f"\n==========================================================================")
+    print(f"Phase 1: Renk Bazlı FCFS Satranç Eşleştirmesi (λ = {lam}, p = {p}, θ = {theta})")
+    print(f"Deney Düzeni: {n_reps} replikasyon × T = {T:.0f}, Isınma = {warmup:.0f}")
+    print(f"==========================================================================\n")
+
+    R = run_replications(lam, p, theta, T=T, n_reps=n_reps, warmup=warmup)
+
+    rows = [
+        ["Varış hızı λ_i", f"{lam*p:.2f}", "", f"{lam*(1-p):.2f}", "", f"{lam:.2f}", ""],
+        ["Oyuncu sayısı / rep", f"{R['beyaz']['oyuncu sayisi'][0]:.0f}", "", f"{R['siyah']['oyuncu sayisi'][0]:.0f}", "", f"{R['toplam']['oyuncu sayisi'][0]:.0f}", ""],
+        ["P(terk_i)", fmt_ci(R['beyaz']['terk orani'], pct=True), cx(ct['abW'], pct=True),
+         fmt_ci(R['siyah']['terk orani'], pct=True), cx(ct['abB'], pct=True),
+         fmt_ci(R['toplam']['terk orani'], pct=True), cx(ct['toplam']['terk orani'], pct=True)],
+        ["Ortalama bekleme W_i", fmt_ci(R['beyaz']['ort. bekleme (tumu)']), cx(ct['Ww']),
+         fmt_ci(R['siyah']['ort. bekleme (tumu)']), cx(ct['Wb']),
+         fmt_ci(R['toplam']['ort. bekleme (tumu)']), cx(ct['L']/lam)],
+        ["P90 bekleme (eşleşen)", fmt_ci(R['beyaz']['p90 bekleme (eslesen)'], 2), "",
+         fmt_ci(R['siyah']['p90 bekleme (eslesen)'], 2), "",
+         fmt_ci(R['toplam']['p90 bekleme (eslesen)'], 2), ""],
+        ["P(W = 0)", fmt_ci(R['beyaz']['beklemeden eslesme orani'], pct=True), "",
+         fmt_ci(R['siyah']['beklemeden eslesme orani'], pct=True), "", "–", ""],
+        ["Ortalama kuyruk L_i", fmt_ci(R['beyaz']['ort. kuyruk uzunlugu']), cx(ct['Lw']),
+         fmt_ci(R['siyah']['ort. kuyruk uzunlugu']), cx(ct['Lb']),
+         fmt_ci(R['toplam']['ort. kuyruk uzunlugu']), cx(ct['L'])],
+        ["Little: λ_i · W_i", f"{lam*p * R['beyaz']['ort. bekleme (tumu)'][0]:.3f}", "",
+         f"{lam*(1-p) * R['siyah']['ort. bekleme (tumu)'][0]:.3f}", "",
+         f"{lam * R['toplam']['ort. bekleme (tumu)'][0]:.3f}", ""],
+    ]
+    print("Renk Bazlı Performans (Ortalama ± %95 Güven Aralığı | CTMC)")
+    head = ["Metrik", "Beyaz sim", "CTMC", "Siyah sim", "CTMC", "Toplam sim", "CTMC"]
+    print(format_table(head, rows), "\n")
+
+    # p sweep
+    ps = sorted(set([0.2, 0.25, 0.3, 0.35, 0.4, 0.45, 0.5, 0.55, 0.6, 0.65, 0.7, 0.75, 0.8, p]))
+    sweep = []
+    for cur_p in ps:
+        pl, aq, _ = simulate(lam, cur_p, theta, T, warmup, seed=42)
+        kp = compute_kpis(pl, aq, warmup)
+        c_th = ctmc_abandon(lam, cur_p, theta)
+        sweep.append((cur_p, kp, c_th))
+
+    s_rows = []
+    for cur_p, kp, c_th in sweep:
+        r = [
+            f"{cur_p:.2f}" + (" *" if cur_p == p else ""),
+            f"{kp['beyaz']['ort. bekleme (tumu)']:.3f}", cx(c_th['Ww']),
+            f"{kp['siyah']['ort. bekleme (tumu)']:.3f}", cx(c_th['Wb']),
+            f"{kp['beyaz']['ort. kuyruk uzunlugu']:.3f}", cx(c_th['Lw']),
+            f"{kp['siyah']['ort. kuyruk uzunlugu']:.3f}", cx(c_th['Lb']),
+            f"{100*kp['beyaz']['terk orani']:.1f}%", cx(c_th['abW'], pct=True)
+        ]
+        s_rows.append(r)
+    s_head = ["p", "W_w sim", "CTMC", "W_b sim", "CTMC", "L_w sim", "CTMC", "L_b sim", "CTMC", "P(ab_w) sim", "CTMC"]
+    print("p Duyarlılık Analizi (Sweep): Simülasyon vs CTMC (* = varsayılan p)")
+    print(format_table(s_head, s_rows), "\n")
+
+    # theta sweep
+    thetas = [0.005, 0.01, 0.02, 0.03, 0.05, 0.075, 0.1, 0.15, 0.2, 0.3, 0.5, 0.75, 1.0]
+    th_rows = []
+    for th in thetas:
+        c_th = ctmc_abandon(lam, p, th)
+        th_rows.append([f"{th:g}", f"{1.0/th:.1f}", f"{c_th['L']:.2f}", f"{c_th['L']/lam:.2f}",
+                        f"{100*c_th['toplam']['terk orani']:.1f}%"])
+    th_head = ["θ", "1/θ (sabır)", "L", "W", "P(terk)"]
+    print(f"Sabır Ödünleşimi · θ Sweep (CTMC, p = {p})")
+    print(format_table(th_head, th_rows), "\n")
+
+    # CSV yazımı
+    csv_path = os.path.join(out_dir, "p_sweep.csv")
+    with open(csv_path, "w", newline="", encoding="utf-8") as f:
+        wr = csv.writer(f)
+        wr.writerow(["p", "W_w_sim", "W_b_sim", "L_w_sim", "L_b_sim", "P_ab_w_sim", "P_ab_b_sim",
+                     "W_w_ctmc", "W_b_ctmc", "L_w_ctmc", "L_b_ctmc", "P_ab_w_ctmc", "P_ab_b_ctmc"])
+        for cur_p, kp, c_th in sweep:
+            wr.writerow([
+                cur_p,
+                kp["beyaz"]["ort. bekleme (tumu)"], kp["siyah"]["ort. bekleme (tumu)"],
+                kp["beyaz"]["ort. kuyruk uzunlugu"], kp["siyah"]["ort. kuyruk uzunlugu"],
+                kp["beyaz"]["terk orani"], kp["siyah"]["terk orani"],
+                c_th["Ww"] if c_th else "", c_th["Wb"] if c_th else "",
+                c_th["Lw"] if c_th else "", c_th["Lb"] if c_th else "",
+                c_th["abW"] if c_th else "", c_th["abB"] if c_th else ""
+            ])
+    print(f"Sonuçlar CSV dosyasına kaydedildi: {csv_path}")
+
+    if plot:
+        # Grafik 1: p sweep
+        plt.style.use("default")
+        fig, axs = plt.subplots(1, 2, figsize=(12, 4.5), dpi=150)
+        p_vals = [s[0] for s in sweep]
+        w_w_sim = [s[1]["beyaz"]["ort. bekleme (tumu)"] for s in sweep]
+        w_w_th = [s[2]["Ww"] for s in sweep]
+        w_b_sim = [s[1]["siyah"]["ort. bekleme (tumu)"] for s in sweep]
+        w_b_th = [s[2]["Wb"] for s in sweep]
+
+        axs[0].plot(p_vals, w_w_th, "b-", label="Beyaz CTMC", lw=1.5)
+        axs[0].plot(p_vals, w_w_sim, "bo", label="Beyaz sim", markersize=5)
+        axs[0].plot(p_vals, w_b_th, "r--", label="Siyah CTMC", lw=1.5)
+        axs[0].plot(p_vals, w_b_sim, "rs", label="Siyah sim", markersize=5)
+        axs[0].set_yscale("log")
+        axs[0].set_xlabel("Beyaz Payı p")
+        axs[0].set_ylabel("Ortalama Bekleme Süresi W_i (log)")
+        axs[0].set_title("Bekleme Süresi: Simülasyon vs CTMC")
+        axs[0].grid(True, alpha=0.3)
+        axs[0].legend()
+
+        ab_w_sim = [100 * s[1]["beyaz"]["terk orani"] for s in sweep]
+        ab_w_th = [100 * s[2]["abW"] for s in sweep]
+        ab_b_sim = [100 * s[1]["siyah"]["terk orani"] for s in sweep]
+        ab_b_th = [100 * s[2]["abB"] for s in sweep]
+
+        axs[1].plot(p_vals, ab_w_th, "b-", label="Beyaz CTMC", lw=1.5)
+        axs[1].plot(p_vals, ab_w_sim, "bo", label="Beyaz sim", markersize=5)
+        axs[1].plot(p_vals, ab_b_th, "r--", label="Siyah CTMC", lw=1.5)
+        axs[1].plot(p_vals, ab_b_sim, "rs", label="Siyah sim", markersize=5)
+        axs[1].plot(p_vals, [max(0, 100 * (2 * x - 1) / x) if x > 0 else 0 for x in p_vals], "k:", label="Alt sınır (2p-1)/p")
+        axs[1].set_xlabel("Beyaz Payı p")
+        axs[1].set_ylabel("Terk Oranı (%)")
+        axs[1].set_title("Terk Oranı: Simülasyon vs CTMC")
+        axs[1].grid(True, alpha=0.3)
+        axs[1].legend()
+
+        plt.tight_layout()
+        p_fig_path = os.path.join(fig_dir, "p_sweep.png")
+        plt.savefig(p_fig_path)
+        plt.close(fig)
+
+        # Grafik 2: Steady state & trace
+        pl, _, tr = simulate(lam, p, theta, T=10_000, warmup=1_000, seed=42)
+        tt, xx = tr
+        fig, axs = plt.subplots(1, 2, figsize=(12, 4.5), dpi=150)
+        mask = (tt >= 1000) & (tt <= 3000)
+        axs[0].step(tt[mask], xx[mask], where="post", color="#2a78d6", lw=1.2)
+        axs[0].axhline(0, color="gray", linestyle="--", alpha=0.7)
+        axs[0].set_xlabel("Zaman")
+        axs[0].set_ylabel("X(t) = #Beyaz - #Siyah")
+        axs[0].set_title("Kuyruk İzi X(t)")
+        axs[0].grid(True, alpha=0.3)
+
+        if ct:
+            n_vals = np.arange(-15, 30)
+            pi_th = [ct["dist"].get(int(n), 0.0) for n in n_vals]
+            axs[1].plot(n_vals, pi_th, "r-", lw=1.5, label="CTMC π_n")
+            axs[1].hist(xx[tt >= 1000], bins=np.arange(-15.5, 30.5, 1), density=True,
+                         alpha=0.5, color="#2a78d6", label="Simülasyon")
+            axs[1].set_xlabel("Durum n")
+            axs[1].set_ylabel("Durağan Olasılık π_n")
+            axs[1].set_title("Durağan Dağılım Doğrulaması")
+            axs[1].grid(True, alpha=0.3)
+            axs[1].legend()
+
+        plt.tight_layout()
+        st_fig_path = os.path.join(fig_dir, "steady_state.png")
+        plt.savefig(st_fig_path)
+        plt.close(fig)
+        print(f"Grafikler kaydedildi: {p_fig_path}, {st_fig_path}")
+
 
 # %%
-fig, axs = plt.subplots(1, 2, figsize=(12, 4))
-ps = np.linspace(0.5, 0.8, 31)
-for theta in THETA_GRID:
-    th = [ctmc_abandon(LAM, p, theta) for p in ps]
-    line, = axs[0].plot(ps, [x["beyaz"]["ort. bekleme (tumu)"] for x in th], label=f"θ={theta}")
-    axs[1].plot(ps, [x["beyaz"]["terk orani"] for x in th], color=line.get_color(), label=f"θ={theta}")
-    sim = [(p, k) for p, t_, k, _ in rows if t_ == theta]
-    axs[0].scatter([p for p, _ in sim], [k["beyaz"]["ort. bekleme (tumu)"] for _, k in sim], color=line.get_color(), s=18)
-    axs[1].scatter([p for p, _ in sim], [k["beyaz"]["terk orani"] for _, k in sim], color=line.get_color(), s=18)
-axs[1].plot(ps, (2 * ps - 1) / ps, "k--", lw=1, label="alt sınır (2p-1)/p")
-axs[0].set_yscale("log")
-axs[0].set_xlabel("p"); axs[0].set_ylabel("beyaz ort. bekleme")
-axs[1].set_xlabel("p"); axs[1].set_ylabel("beyaz terk oranı")
-for a in axs: a.legend()
-fig.suptitle("CTMC (çizgi) vs simülasyon (nokta)")
-plt.tight_layout(); plt.show()
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="Phase 1: Renk bazlı FCFS satranç eşleştirmesi")
+    parser.add_argument("--lam", type=float, default=1.0, help="Geliş hızı λ")
+    parser.add_argument("--p", type=float, default=0.6, help="Beyaz oyuncu olasılığı p")
+    parser.add_argument("--theta", type=float, default=0.05, help="Terk hızı θ")
+    parser.add_argument("--no-abandon", action="store_true", help="Terk mekanizmasını kapat (θ = 0)")
+    parser.add_argument("--T", type=float, default=20_000, help="Simülasyon süresi T")
+    parser.add_argument("--warmup", type=float, default=1_000.0, help="Isınma süresi")
+    parser.add_argument("--reps", type=int, default=5, help="Replikasyon sayısı")
+    parser.add_argument("--plot", action="store_true", default=True, help="Grafikleri kaydet")
+    parser.add_argument("--out-dir", type=str, default=os.path.join(os.path.dirname(os.path.abspath(__file__)), "results"),
+                        help="Sonuçların kaydedileceği klasör")
+    args = parser.parse_args()
 
-# %% [markdown]
-# ## Not: terk olmasaydı ($\theta = 0$)
-# Sistem hiçbir $p$ için kararlı olmaz: $p \ne 0.5$ iken çoğunluk renginin kuyruğu $\approx |2p-1|\lambda t$ hızla doğrusal büyür; $p = 0.5$ iken medyan bekleme küçüktür ama $E[W] = \infty$ (null-recurrent rastgele yürüyüş). Aşağıdaki hücre bunu gösterir.
-
-# %%
-fig, ax = plt.subplots(figsize=(8, 4))
-for p in [0.5, 0.55, 0.6]:
-    _, _, (tt, xx) = simulate(LAM, p, 0.0, 10_000, seed=SEED)
-    ax.plot(tt, xx, label=f"p={p}")
-ax.set_xlabel("zaman"); ax.set_ylabel("#beyaz - #siyah")
-ax.set_title("θ = 0: kuyruk kararsız")
-ax.legend(); plt.tight_layout(); plt.show()
+    th = 0.0 if args.no_abandon else args.theta
+    run_phase1_experiments(lam=args.lam, p=args.p, theta=th, T=args.T, n_reps=args.reps,
+                           warmup=args.warmup, plot=args.plot, out_dir=args.out_dir)
